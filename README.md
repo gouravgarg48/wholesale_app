@@ -184,15 +184,84 @@ Token (PAT) instead:
 locking down now before real ledger/inventory logic and any business-adjacent
 test data end up in commits.
 
-## Next steps
+## 5. IndexedDB schema design
 
-- [x] Confirm PWA checkpoint (manifest + service worker visible in DevTools)
-- [x] `git init`, first commit, and remote configured
-- [ ] **Pending confirmation:** did `git push -u origin main` succeed after
-      setting up the PAT? Re-run it if not yet confirmed working.
-- [ ] Add IndexedDB wrapper (`idb`)
-- [ ] Set up folder structure (`src/db`, `src/features/ledger`,
-      `src/features/inventory`, `src/features/billing`, `src/components`)
-- [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`)
-- [ ] Design IndexedDB schema (retailers, sales, payments, bills, inventory
-      events, products) — next major piece of Phase 1
+Went through a few iterations before landing here. Key decisions and why, in case
+they need revisiting later:
+
+- **No per-retailer price overrides.** Instead, each sale line item snapshots its
+  own `salePrice` at time of sale. Simpler and more flexible — pricing is decided
+  per bill, not pre-configured per retailer.
+- **Cash sales supported without a retailer record** — `saleType: 'CASH'` +
+  `buyerName`, vs `saleType: 'RETAIL'` + `retailerId`. Cash sales are implicitly
+  paid in full at time of sale and never touch the ledger.
+- **No separate `paymentAllocations` join table.** Allocations are stored inline
+  on each `Payment` as an array (`{ saleId, amountApplied }[]`). Each `Sale`
+  carries `amountPaid` and `paymentStatus` so the aging view (who owes what, since
+  when) can be computed directly from sales, without a reverse-lookup table this
+  scale doesn't need.
+- **No separate inventory event log.** `Inventory.quantity` is a cached running
+  total instead. The audit trail requirement is satisfied by `Sale`, `Restock`,
+  and `Return` each being their own immutable, timestamped resource — as long as
+  every write to `quantity` happens inside the same transaction as creating one of
+  those records, never as a standalone edit.
+- **Waste/loss tracking deliberately cut from v1 scope** (originally planned as a
+  third inventory event type). Can be added back later as its own store, same
+  shape as `restock`, without touching anything else — tracking manually for now.
+- **Dates stored as `number`** (epoch ms via `Date.now()`), not `Date` objects or
+  ISO strings — clean index range queries and simple arithmetic for aging buckets.
+
+Final schema lives in `src/db/schema.ts`. ✅ Builds clean, no TypeScript errors.
+
+**Important write-discipline note for later phases:** any code that creates a
+Sale, Restock, or Return must update `inventory.quantity` inside the *same*
+IndexedDB transaction (e.g. `db.transaction(['sales', 'inventory'], 'readwrite')`).
+Two separate transactions risk inventory drifting out of sync with what was
+actually sold if a crash happens between them — this is the one spot in the app
+where a subtle bug costs real money.
+
+## 6. Offline caching test
+
+Built + previewed production build, loaded once online (service worker installed
+and cached the app shell), then switched DevTools → Network to "Offline" and
+reloaded. ✅ App shell rendered fully offline — no browser error page.
+
+### Gotcha: `verbatimModuleSyntax` and type-only imports
+
+Vite's TS template enables `verbatimModuleSyntax`, which requires types imported
+from a library to be explicitly marked as type-only if mixed with real
+values/functions in the same import line. Hit this with `idb`:
+
+```ts
+// ❌ fails: DBSchema and IDBPDatabase are types, openDB is a function
+import { openDB, DBSchema, IDBPDatabase } from 'idb';
+
+// ✅ split them
+import { openDB } from 'idb';
+import type { DBSchema, IDBPDatabase } from 'idb';
+```
+
+Worth remembering for any future library import that mixes types and values.
+
+## Phase 1 — COMPLETE ✅
+
+All checkpoints verified, not just tasks completed:
+- Project scaffold builds and runs
+- PWA manifest + service worker confirmed active in DevTools
+- App shell confirmed working fully offline (DevTools network throttling)
+- Git initialized, GitHub remote pushed
+- IndexedDB schema designed, discussed, and building with no TS errors
+- Folder structure in place: `src/db`, `src/features/{ledger,inventory,billing}`,
+  `src/components`
+
+## Next steps — Phase 2: Inventory core
+
+- [ ] Build inventory data-access functions in `src/db` (create/read inventory
+      items, apply unit conversions)
+- [ ] Restock flow: create a `restock` record + atomically update
+      `inventory.quantity` in the same transaction
+- [ ] Basic inventory list UI (in `src/features/inventory`)
+- [ ] Confirm the write-discipline rule holds: every quantity change happens
+      inside the same transaction as the resource that causes it
+- [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`) —
+      still pending from Phase 1, low priority, fold in whenever convenient
