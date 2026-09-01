@@ -149,11 +149,50 @@ Manifest and an active Service Worker.
 > `vite.config.ts` edit likely wasn't saved before the build ran — save the file
 > and re-run the build.
 
+## 4. Git init and GitHub remote
+
+```powershell
+git init
+git add -A
+git commit -m "Initial scaffold with PWA setup"
+```
+
+### Pushing to GitHub — auth note
+
+Password auth over HTTPS is no longer supported by GitHub. Use a Personal Access
+Token (PAT) instead:
+
+1. GitHub → Settings → Developer settings → Personal access tokens → Tokens
+   (classic) → Generate new token (classic), or go directly to
+   `https://github.com/settings/tokens/new`.
+2. Check the top-level **repo** scope, set an expiry (90 days is a reasonable
+   default), generate, and copy the token immediately — it's shown only once.
+3. Connect the remote and push, using the token as the password when prompted
+   (not your GitHub account password):
+   ```powershell
+   git remote add origin https://github.com/gouravgarg48/wholesale_app.git
+   git branch -M main
+   git push -u origin main
+   ```
+4. To avoid re-entering the token every push, cache it via Git Credential Manager
+   (usually bundled with Git for Windows):
+   ```powershell
+   git config --global credential.helper manager
+   ```
+
+**Reminder:** confirm the GitHub repo is set to **private**, not public — worth
+locking down now before real ledger/inventory logic and any business-adjacent
+test data end up in commits.
+
 ## Next steps
 
 - [x] Confirm PWA checkpoint (manifest + service worker visible in DevTools)
+- [x] `git init`, first commit, and remote configured
+- [ ] **Pending confirmation:** did `git push -u origin main` succeed after
+      setting up the PAT? Re-run it if not yet confirmed working.
 - [ ] Add IndexedDB wrapper (`idb`)
 - [ ] Set up folder structure (`src/db`, `src/features/ledger`,
       `src/features/inventory`, `src/features/billing`, `src/components`)
-- [ ] Configure ESLint + Prettier compatibility
-- [ ] `git init` and first commit
+- [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`)
+- [ ] Design IndexedDB schema (retailers, sales, payments, bills, inventory
+      events, products) — next major piece of Phase 1
