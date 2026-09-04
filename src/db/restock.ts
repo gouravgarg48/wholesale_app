@@ -1,0 +1,66 @@
+import { getDB } from './schema';
+import type { WholesaleDB } from './schema';
+import { convertToBaseUnit } from './inventory';
+
+type RestockInput = {
+  items: { inventoryId: string; unit: string; quantity: number; costPricePerUnit: number }[];
+};
+
+type RestockRecord = WholesaleDB['restock']['value'];
+
+export async function createRestock(input: RestockInput): Promise<RestockRecord> {
+  if (input.items.length === 0) {
+    throw new Error('Restock must include at least one item');
+  }
+
+  const db = await getDB();
+  const tx = db.transaction(['restock', 'inventory'], 'readwrite');
+  const restockStore = tx.objectStore('restock');
+  const inventoryStore = tx.objectStore('inventory');
+
+  try {
+    let totalCost = 0;
+
+    for (const item of input.items) {
+      if (item.quantity <= 0) {
+        throw new Error('Restock quantity must be positive');
+      }
+
+      const inventoryItem = await inventoryStore.get(item.inventoryId);
+      if (!inventoryItem) {
+        throw new Error(`Inventory item ${item.inventoryId} not found`);
+      }
+
+      const baseQuantity = convertToBaseUnit(inventoryItem, item.quantity, item.unit);
+      inventoryItem.quantity += baseQuantity;
+      await inventoryStore.put(inventoryItem);
+
+      totalCost += item.quantity * item.costPricePerUnit;
+    }
+
+    const restockRecord: RestockRecord = {
+      id: crypto.randomUUID(),
+      date: Date.now(),
+      items: input.items,
+      totalCost,
+      createdAt: Date.now(),
+    };
+
+    await restockStore.add(restockRecord);
+    await tx.done;
+
+    return restockRecord;
+  } catch (err) {
+    try {
+      tx.abort();
+    } catch {
+      // already finished/aborted — safe to ignore
+    }
+    // tx.abort() causes tx.done to reject with AbortError. We already have
+    // the real error in `err` and are about to rethrow it below, so this
+    // rejection is expected and handled — without this line, it surfaces
+    // as an unhandled rejection even though the abort itself worked correctly.
+    tx.done.catch(() => {});
+    throw err;
+  }
+}

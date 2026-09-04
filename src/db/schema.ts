@@ -112,30 +112,46 @@ export interface WholesaleDB extends DBSchema {
 const DB_NAME = 'wholesale-app-db';
 const DB_VERSION = 1;
 
-export async function getDB(): Promise<IDBPDatabase<WholesaleDB>> {
-  return openDB<WholesaleDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      const retailers = db.createObjectStore('retailers', { keyPath: 'id' });
-      retailers.createIndex('by-name', 'name');
+// src/db/schema.ts — replace the getDB function at the bottom with:
 
-      const inventory = db.createObjectStore('inventory', { keyPath: 'id' });
-      inventory.createIndex('by-name', 'productName');
+let dbPromise: Promise<IDBPDatabase<WholesaleDB>> | null = null;
 
-      const sales = db.createObjectStore('sales', { keyPath: 'id' });
-      sales.createIndex('by-retailer', 'retailerId');
-      sales.createIndex('by-date', 'date');
-      sales.createIndex('by-status', 'status');
-      sales.createIndex('by-payment-status', 'paymentStatus');
+export function getDB(): Promise<IDBPDatabase<WholesaleDB>> {
+  if (!dbPromise) {
+    dbPromise = openDB<WholesaleDB>(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        const retailers = db.createObjectStore('retailers', { keyPath: 'id' });
+        retailers.createIndex('by-name', 'name');
 
-      const restock = db.createObjectStore('restock', { keyPath: 'id' });
-      restock.createIndex('by-date', 'date');
+        const inventory = db.createObjectStore('inventory', { keyPath: 'id' });
+        inventory.createIndex('by-name', 'productName');
 
-      const returns = db.createObjectStore('returns', { keyPath: 'id' });
-      returns.createIndex('by-sale', 'saleId');
+        const sales = db.createObjectStore('sales', { keyPath: 'id' });
+        sales.createIndex('by-retailer', 'retailerId');
+        sales.createIndex('by-date', 'date');
+        sales.createIndex('by-status', 'status');
+        sales.createIndex('by-payment-status', 'paymentStatus');
 
-      const payments = db.createObjectStore('payments', { keyPath: 'id' });
-      payments.createIndex('by-retailer', 'retailerId');
-      payments.createIndex('by-date', 'date');
-    },
-  });
+        const restock = db.createObjectStore('restock', { keyPath: 'id' });
+        restock.createIndex('by-date', 'date');
+
+        const returns = db.createObjectStore('returns', { keyPath: 'id' });
+        returns.createIndex('by-sale', 'saleId');
+
+        const payments = db.createObjectStore('payments', { keyPath: 'id' });
+        payments.createIndex('by-retailer', 'retailerId');
+        payments.createIndex('by-date', 'date');
+      },
+    });
+  }
+  return dbPromise;
+}
+
+// for tests, and any future "reset local data" feature
+export async function closeDB(): Promise<void> {
+  if (dbPromise) {
+    const db = await dbPromise;
+    db.close();
+    dbPromise = null;
+  }
 }

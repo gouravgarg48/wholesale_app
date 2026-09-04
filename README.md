@@ -256,12 +256,177 @@ All checkpoints verified, not just tasks completed:
 
 ## Next steps — Phase 2: Inventory core
 
-- [ ] Build inventory data-access functions in `src/db` (create/read inventory
-      items, apply unit conversions)
-- [ ] Restock flow: create a `restock` record + atomically update
-      `inventory.quantity` in the same transaction
-- [ ] Basic inventory list UI (in `src/features/inventory`)
-- [ ] Confirm the write-discipline rule holds: every quantity change happens
-      inside the same transaction as the resource that causes it
 - [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`) —
-      still pending from Phase 1, low priority, fold in whenever convenient
+      still pending, low priority
+- [ ] Sale flow (mirrors restock's transaction pattern, decrements instead of
+      increments, snapshots `salePrice` per line item)
+
+## 7. Testing strategy
+
+Given the plan's explicit guidance ("cut UI polish before cutting testing —
+testing protects against ledger bugs that cost real money"), settled on a scoped
+approach rather than skipping tests or over-investing:
+
+- **Unit tests**, written alongside each pure function as it's built: unit
+  conversion, later bill totals, aging-bucket math, balance derivation.
+- **Integration tests** for transaction-boundary code specifically — anything
+  touching `inventory.quantity` (restock/sale/return) and payment allocation
+  logic. These are the highest-stakes spots since a bug there silently corrupts
+  real data.
+- **Skipped for now**: UI component tests, end-to-end tests — not worth it before
+  the Phase 6 UI pass, since the UI doesn't have final shape yet.
+
+Set up with Vitest (shares Vite's config, near-zero setup):
+```powershell
+npm install -D vitest
+```
+Added `"test": "vitest"` to `package.json` scripts, and a `test` block to
+`vite.config.ts` (`environment: 'node'` — no DOM needed for pure logic tests).
+
+**Real bug caught during setup, worth remembering:** a test asserting a function
+throws (`expect(() => fn()).toThrow()`) can pass for the *wrong* reason — calling
+an `undefined` function also throws a `TypeError`, which satisfies a
+no-argument `.toThrow()` check. First test run showed 2/7 passing this way
+because `inventory.ts` hadn't actually been saved yet, masking the real failure.
+**Lesson: a passing "throws" test isn't proof by itself — confirm it's throwing
+for the right reason, not just throwing.**
+
+## 8. Inventory data-access layer
+
+`src/db/inventory.ts` — `createInventoryItem`, `getInventoryItem`,
+`listInventory`, plus `convertToBaseUnit`/`convertFromBaseUnit` for unit
+conversion. Key decisions:
+
+- New items always start at `quantity: 0` — stock only ever enters through a
+  restock record, which enforces the "quantity only changes via a real
+  transaction" rule from day one rather than relying on remembering it later.
+- Unit conversion **throws** on an undefined unit rather than silently returning
+  `NaN` or an unconverted number — fails loud instead of quietly corrupting stock
+  counts.
+
+`src/db/inventory.test.ts` — 7 tests covering both conversion functions
+including a round-trip check (catches the case where one direction of a
+conversion is fixed but its inverse isn't). ✅ All passing, confirmed for the
+right reasons.
+
+## 9. Restock flow — the first proven atomic transaction
+
+`src/db/restock.ts` — `createRestock()`. Takes a batch of items, converts each to
+the item's base unit, updates `inventory.quantity` for each, and writes a
+`restock` record — all inside one IndexedDB transaction
+(`db.transaction(['restock', 'inventory'], 'readwrite')`), with an explicit
+`tx.abort()` in the catch block if anything fails partway through the batch.
+
+**Why explicit abort matters:** wrapping code in a transaction doesn't make it
+atomic by itself. Without `tx.abort()`, any `inventoryStore.put()` calls already
+made earlier in the loop would auto-commit once the transaction goes idle,
+silently leaving quantity partially updated. The explicit abort is the actual
+mechanism that makes this safe.
+
+### Refactor: `getDB()` is now a cached singleton
+
+Added `closeDB()` alongside it (needed for tests to cleanly reset between runs;
+also useful later for a "reset local data" feature).
+
+### Testing infrastructure — three real issues hit and fixed, in order
+
+1. **`vite.config.ts` needs `defineConfig` from `'vitest/config'`**, not `'vite'`
+   — Vite's own `defineConfig` type doesn't know about the `test` field Vitest
+   adds, which throws a confusing "test does not exist" TS error otherwise.
+2. **Test files must be excluded from the production build's type-check** — added
+   `"exclude": ["src/**/*.test.ts"]` to `tsconfig.app.json`. `tsc -b` (used by
+   `npm run build`) doesn't need to resolve `vitest` at all; Vitest handles its
+   own compilation separately at runtime.
+3. **`fake-indexeddb`** installed as a polyfill, since Vitest runs in Node and
+   Node has no real IndexedDB. Wired up via `src/test-setup.ts`
+   (`import 'fake-indexeddb/auto'`) referenced in `vite.config.ts`'s
+   `test.setupFiles`.
+
+Also hit (and worth remembering): a combined `npm install -D vitest fake-indexeddb`
+silently failed to install `vitest` specifically, with no visible error in the
+truncated terminal output — `fake-indexeddb` landed, `vitest` didn't.
+**Lesson: when "cannot find module X" persists after what looks like a
+successful install, check `npm list X` directly rather than assuming it's a
+config problem** — install failures and config failures throw near-identical
+errors.
+
+### Real bug caught by Vitest itself, not by us
+
+First test run: all 11 tests reported "passed," but Vitest also flagged an
+**unhandled rejection** (`AbortError`) after the rollback test. Root cause:
+`tx.abort()` causes `idb`'s `tx.done` promise to reject, and the `catch` block
+only awaited `tx.done` on the success path — the rejection from `tx.abort()`
+was never caught. Fixed by adding `tx.done.catch(() => {})` before rethrowing
+the original error. The rollback itself was always working correctly (that's why
+the test's assertion passed) — but an unhandled rejection is a real bug that can
+cause flaky results later, even while the test count says "all green."
+**Lesson: a fully green test run can still have a bug flagged elsewhere in the
+output — check for warnings/unhandled-error sections, not just the pass count.**
+
+### Test coverage (`src/db/restock.test.ts`, 4 tests)
+
+- Inventory quantity increases by the correctly converted amount
+- `totalCost` computed correctly across multiple line items
+- **Rollback test**: a batch with one valid item followed by one invalid item
+  (nonexistent `inventoryId`) leaves the valid item's quantity at 0, not
+  partially updated — proves the transaction actually rolls back, not just that
+  the function throws
+- Empty items array is rejected
+
+✅ 11/11 tests passing, confirmed with no unhandled errors.
+
+## 10. First UI screen: inventory list + add-product form
+
+`src/features/inventory/InventoryList.tsx` and `AddProductForm.tsx`, wired into
+`App.tsx`. Deliberately functional-first, not a final design pass — Phase 6 is
+where visual polish gets real attention.
+
+- **Empty state confirmed working** before any write path existed — proved
+  `listInventory()` + the loading/error/empty branches render correctly with a
+  genuinely empty store, not just with data present.
+- **Refresh-on-create wiring**: `App.tsx` holds a `refreshTrigger` counter,
+  passed down to `InventoryList` as a prop and bumped by `AddProductForm`'s
+  `onCreated` callback. This is the standard React pattern for "sibling
+  component needs to know data changed elsewhere" — worth remembering, since
+  it'll repeat for sale-form → inventory refresh, payment-form → ledger refresh,
+  etc.
+- Form validates client-side before writing: name required, price must be a
+  positive number, conversion units can't collide with the base unit or repeat.
+
+**Bug hit and fixed:** blank white screen on first load — actually a
+`SyntaxError` (missing export), not a silent failure. Root cause: the
+`formatQuantityDisplay` helper was described in chat but not yet saved into
+`inventory.ts` before the importing component was created. **Lesson: always
+check the browser console before assuming a blank screen means "nothing
+rendered" — it usually means something crashed, and the console says
+why.**
+
+## 11. Styling: Tailwind CSS (v4)
+
+Started with hand-written CSS files per component; switched to Tailwind once a
+second component made it clear two competing styling systems (hand-written CSS
++ inline utility-style choices) would get confusing fast.
+
+Setup (Tailwind v4 — notably simpler than older tutorials floating around
+online, which reference a `tailwind.config.js`/PostCSS flow from v3 that no
+longer applies):
+```powershell
+npm install -D tailwindcss @tailwindcss/vite
+```
+Added `tailwindcss()` to the `plugins` array in `vite.config.ts` alongside
+`react()` and `VitePWA()`. Replaced `src/index.css` entirely with:
+```css
+@import "tailwindcss";
+```
+No config file needed for this basic setup.
+
+**Design choice:** using Tailwind's arbitrary-value syntax (e.g.
+`text-[#6b6555]`, `bg-[#faf7f2]`) instead of Tailwind's built-in palette
+(`text-gray-500`, etc.) to keep the warm-paper aesthetic specific to this app
+rather than drifting toward Tailwind's generic defaults. Worth formalizing into
+named theme tokens (a `@theme` block) once 3-4 screens repeat the same colors —
+premature right now with only two components.
+
+Both `InventoryList.tsx` and `AddProductForm.tsx` converted to Tailwind
+utilities; the two original `.css` files deleted. ✅ Confirmed visually
+identical after the conversion — a system swap, not a redesign.
