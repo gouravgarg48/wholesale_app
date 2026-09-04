@@ -256,12 +256,12 @@ All checkpoints verified, not just tasks completed:
 
 ## Next steps — Phase 2: Inventory core
 
-- [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`) —
-      still pending, low priority
 - [ ] Sale UI (mirrors AddProductForm's shape: CASH vs RETAIL toggle, item
       picker, refresh-on-create wiring into InventoryList)
 - [ ] Retailer CRUD (needed before RETAIL sales can be tested end-to-end through
       the UI — currently only testable with a raw `retailerId` string)
+- [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`) —
+      still pending, low priority
 
 ## 7. Testing strategy
 
@@ -498,3 +498,30 @@ updating local state, so the table always reflects what's actually persisted.
 
 ✅ 23/23 tests passing overall. Manually confirmed: create, edit price, and
 persistence across a page refresh all working correctly.
+
+## 14. Restock UI
+
+Closed a real gap flagged at the end of the last session: `createRestock()` had
+automated test coverage but had never been exercised through the actual app —
+every inventory item visible in the browser still showed `quantity: 0`, since
+nothing existed to add real stock through the UI.
+
+`src/features/inventory/RestockForm.tsx` — picks from *existing* inventory items
+(doesn't create new ones, unlike `AddProductForm`), supports multiple line items
+per delivery matching the schema's batch shape, wired into `App.tsx` sharing the
+same `refreshTrigger` pattern as the other forms.
+
+A couple of deliberate details:
+- **Switching the product mid-row resets the selected unit.** Without this, a
+  unit valid for one product (e.g. "bag") could silently carry over to a
+  different product that has no such conversion defined, and get submitted
+  as-is.
+- **Empty trailing rows are silently skipped on submit, but partially-filled
+  rows throw a real validation error** — lets you leave a blank row at the
+  bottom without blocking submission, while still catching genuinely
+  incomplete entries.
+
+✅ Manually confirmed end-to-end: create a product → record a restock →
+correct non-zero quantity renders in the inventory table. First time real stock
+numbers (not just `0`) have been seen on screen rather than only in test
+assertions.
