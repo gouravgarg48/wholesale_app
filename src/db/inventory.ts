@@ -3,6 +3,12 @@ import type { WholesaleDB } from './schema';
 
 type InventoryItem = WholesaleDB['inventory']['value'];
 
+type InventoryUpdateInput = {
+  productName?: string;
+  marketPrice?: number;
+  unitConversions?: Record<string, number>;
+};
+
 export async function createInventoryItem(
   input: Omit<InventoryItem, 'id' | 'quantity' | 'createdAt'>
 ): Promise<InventoryItem> {
@@ -81,4 +87,43 @@ export function formatQuantityDisplay(item: InventoryItem): string {
     }
   }
   return parts.join(' · ');
+}
+
+export async function updateInventoryItem(
+  id: string,
+  updates: InventoryUpdateInput
+): Promise<InventoryItem> {
+  const db = await getDB();
+  const item = await db.get('inventory', id);
+  if (!item) {
+    throw new Error(`Inventory item ${id} not found`);
+  }
+
+  if (updates.productName !== undefined) {
+    const trimmed = updates.productName.trim();
+    if (!trimmed) throw new Error('Product name cannot be empty');
+    item.productName = trimmed;
+  }
+
+  if (updates.marketPrice !== undefined) {
+    if (!Number.isFinite(updates.marketPrice) || updates.marketPrice <= 0) {
+      throw new Error('Market price must be a positive number');
+    }
+    item.marketPrice = updates.marketPrice;
+  }
+
+  if (updates.unitConversions !== undefined) {
+    for (const [unit, factor] of Object.entries(updates.unitConversions)) {
+      if (unit === item.baseUnit) {
+        throw new Error(`Conversion unit "${unit}" can't match the base unit`);
+      }
+      if (!Number.isFinite(factor) || factor <= 0) {
+        throw new Error(`Conversion factor for "${unit}" must be a positive number`);
+      }
+    }
+    item.unitConversions = updates.unitConversions;
+  }
+
+  await db.put('inventory', item);
+  return item;
 }

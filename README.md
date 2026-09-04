@@ -258,8 +258,10 @@ All checkpoints verified, not just tasks completed:
 
 - [ ] Configure ESLint + Prettier compatibility (`eslint-config-prettier`) —
       still pending, low priority
-- [ ] Sale flow (mirrors restock's transaction pattern, decrements instead of
-      increments, snapshots `salePrice` per line item)
+- [ ] Sale UI (mirrors AddProductForm's shape: CASH vs RETAIL toggle, item
+      picker, refresh-on-create wiring into InventoryList)
+- [ ] Retailer CRUD (needed before RETAIL sales can be tested end-to-end through
+      the UI — currently only testable with a raw `retailerId` string)
 
 ## 7. Testing strategy
 
@@ -430,3 +432,69 @@ premature right now with only two components.
 Both `InventoryList.tsx` and `AddProductForm.tsx` converted to Tailwind
 utilities; the two original `.css` files deleted. ✅ Confirmed visually
 identical after the conversion — a system swap, not a redesign.
+
+## 12. Sale flow
+
+`src/db/sales.ts` — `createSale()`. Same atomic-transaction pattern as restock
+(`db.transaction(['sales', 'inventory'], 'readwrite')`, explicit `tx.abort()` +
+`tx.done.catch(() => {})` on failure), decrementing `inventory.quantity` instead
+of incrementing it.
+
+**One genuinely new business rule vs restock:** a sale can't take more stock
+than exists. Checked *inside* the transaction, against the live record just
+read from the store — not against a value cached earlier — so it's correct even
+if another write touched the same item concurrently.
+
+**CASH vs RETAIL handled at creation time:**
+- `CASH` → requires `buyerName`, marked `paymentStatus: 'paid'` and
+  `amountPaid: totalAmount` immediately (no ledger involvement, per the earlier
+  schema decision).
+- `RETAIL` → requires `retailerId`, starts `paymentStatus: 'unpaid'` and
+  `amountPaid: 0` until a future payment allocates against it.
+
+### Test coverage (`src/db/sales.test.ts`, 7 tests)
+
+- Inventory quantity decreases by the correctly converted amount
+- CASH sale marked fully paid on creation
+- RETAIL sale marked unpaid on creation
+- Sale exceeding available stock is rejected, **and stock is confirmed
+  untouched** afterward (not just that it throws)
+- **Rollback test**: a multi-item sale with a valid deduction first and an
+  insufficient-stock failure second leaves the first item's quantity fully
+  restored — proves the transaction actually unwinds, not just that the
+  function errors
+- CASH sale without a buyer name is rejected
+- Empty items array is rejected
+
+✅ 18/18 tests passing across all three test files (`inventory`, `restock`,
+`sales`), clean production build, no unhandled errors.
+
+## 13. Editable product fields
+
+Market price changes frequently in practice, so needed a real edit path — but
+not every field on a product is safe to edit after creation:
+
+- **Safe to edit anytime**: `productName`, `marketPrice`, `unitConversions`.
+  These are forward-looking defaults; past sales already snapshotted their own
+  `salePrice` at time of sale, so editing these never touches historical
+  records.
+- **Never editable**: `quantity` (only changes via restock/sale/return, per the
+  standing rule) and `baseUnit`. The latter is subtle — `quantity` is stored as
+  a raw number *in* `baseUnit`; changing `baseUnit` after stock exists would
+  silently reinterpret that number in the new unit without converting it. If a
+  product's base unit was set wrong, delete and recreate it rather than editing
+  in place.
+
+`updateInventoryItem()` added to `src/db/inventory.ts`. Its input type simply
+omits `quantity` and `baseUnit` as fields — TypeScript makes editing them
+impossible to wire up by accident, not just a runtime check that could be
+forgotten. 5 tests in `src/db/inventory-update.test.ts` cover: price update
+leaves quantity untouched, non-positive price rejected, empty name rejected,
+conversion unit colliding with base unit rejected, nonexistent item rejected.
+
+**UI**: inline edit on each `InventoryList` row ("Edit price" → input + Save/
+Cancel). Deliberately refetches from the DB after save rather than optimistically
+updating local state, so the table always reflects what's actually persisted.
+
+✅ 23/23 tests passing overall. Manually confirmed: create, edit price, and
+persistence across a page refresh all working correctly.
