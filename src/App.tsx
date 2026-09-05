@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AddProductForm } from './features/inventory/AddProductForm';
 import { InventoryList } from './features/inventory/InventoryList';
 import { RestockForm } from './features/inventory/RestockForm';
+import { AgingReport } from './features/ledger/AgingReport';
 import { PaymentForm } from './features/ledger/PaymentForm';
 import { RetailerForm } from './features/ledger/RetailerForm';
 import { RetailerList } from './features/ledger/RetailerList';
@@ -15,6 +16,7 @@ function App() {
     <div>
       <RetailerForm onCreated={refresh} />
       <RetailerList refreshTrigger={refreshTrigger} />
+      <AgingReport refreshTrigger={refreshTrigger} />
       <PaymentForm onCreated={refresh} />
       <AddProductForm onCreated={refresh} />
       <RestockForm onCreated={refresh} />

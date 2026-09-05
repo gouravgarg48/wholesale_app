@@ -599,3 +599,70 @@ that's not a rare edge case, it's Tuesday.
 - Payment against a retailer with nothing owed is rejected
 
 ✅ 41/41 tests passing across all six test files after the clock fix.
+
+## 17. Aging report
+
+`src/db/aging.ts` — `getAgingReport(asOf = Date.now())`. For every retailer
+with an unpaid/partial sale, computes days-outstanding per sale, buckets into
+`current | 7+ | 15+ | 30+`, and sorts the whole report worst-bucket-first (then
+by total outstanding) so the most overdue retailers surface at the top rather
+than requiring a scan of the whole list.
+
+**Deliberate design choice: `asOf` is a parameter, not read internally from
+`Date.now()`.** This is what makes "20 days later" and "sort by severity"
+testable deterministically at all — without it, every aging test would depend
+on the actual wall-clock moment it happens to run.
+
+### A second test-timing bug, different flavor from the FIFO one
+
+The "sorts retailers with the most overdue bucket first" test failed on first
+run — but this time the *function* was correct; the *test* was wrong. The test
+created two sales back-to-back (a few milliseconds apart via `monotonicNow()`)
+and computed a single shared `asOf` meant to make one "5 days old" and the
+other "40 days old" — but both sales actually landed at roughly the same age
+relative to that `asOf`, since the only real time difference between them was
+milliseconds, not days. Both fell into the same `30+` bucket with identical
+outstanding amounts, so the sort had a genuine tie and picked arbitrarily.
+
+**Fix:** stopped relying on incidental timing between `createSale()` calls
+entirely — directly overwrote each sale's `date` field in the test to set up
+the exact age difference under test, then ran the assertion against that.
+
+**Broader lesson, now confirmed twice in one project (see also the FIFO
+payment bug in section 16):** any test whose premise is "record A happened
+before/after record B" needs to control that relationship explicitly, not
+infer it from call order or incidental timing. This isn't the same bug
+repeating — the FIFO case was a real production bug (the code was wrong), this
+one was a test-authoring bug (the code was fine, the test's setup didn't
+actually create the condition it claimed to). Worth being precise about which
+one it is each time, since the fix location differs.
+
+### Test coverage (`src/db/aging.test.ts`, 5 tests)
+
+- Retailers with zero outstanding balance are excluded from the report
+- A sale's age in days is bucketed correctly
+- `totalOutstanding` sums unpaid amounts, not full sale totals (respects
+  partial payments already applied)
+- **Sort test**: retailer with a 30+ day debt sorts ahead of one with a
+  current debt — this is the test that caught the timing bug above
+- Multiple unpaid sales for one retailer are ordered oldest-first within that
+  retailer's entry list
+
+✅ 46/46 tests passing across all seven test files.
+
+## 18. Real-device phone install check — started, not yet complete
+
+Prompted by noticing this was actually part of Phase 1's original checkpoint
+("app shell installs on your phone... opens offline") but had only ever been
+verified via desktop DevTools network throttling — never on an actual device.
+
+Process: `npm run build` (compiles — no `--host` flag here, that's a `preview`
+option not a `build` option, corrected after an initial mix-up), then
+`npm run preview -- --host` to serve on the local network rather than just
+localhost. Confirmed working — terminal shows both `Local:` and `Network:`
+URLs.
+
+**Stopped here for the session** — next step is opening the network URL on
+the phone (same Wi-Fi), adding to home screen, launching standalone, and the
+actual checkpoint: airplane mode with the app already open, confirming the
+shell still loads. None of that's been done yet.

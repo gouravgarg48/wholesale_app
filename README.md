@@ -101,12 +101,32 @@ Done:
   first, updates each sale's `amountPaid`/`paymentStatus`, atomic transaction
   proven by tests (including an exact-split case across two sales)
 
+Done (continued):
+- Aging report: buckets each retailer's unpaid sales by days outstanding
+  (current / 7+ / 15+ / 30+), sorted worst-bucket-first so the most overdue
+  retailers surface at the top
+
 Not yet built:
-- [ ] Credit limit + aging view (balance-over-limit is visually flagged in the
-      retailer table already; a dedicated aging-by-days view is not built)
 - [ ] Cancel/return flow (`createReturn()` — reverses a sale's amount, restores
       inventory atomically)
 - [ ] ESLint + Prettier compatibility (`eslint-config-prettier`) — low priority
+
+## Outstanding: real-device phone install check
+
+**In progress, not yet confirmed.** This was actually part of Phase 1's
+original checkpoint ("app shell installs on your phone... opens offline") but
+was only ever verified via desktop DevTools network throttling, never on an
+actual phone. Currently mid-flow:
+
+- [x] `npm run build` then `npm run preview -- --host` (serves on the local
+      network, not just localhost — confirmed working)
+- [ ] Open the network URL on phone (same Wi-Fi required)
+- [ ] Add to home screen (Android Chrome / iOS Safari)
+- [ ] Launch from home-screen icon, confirm standalone (no browser chrome)
+- [ ] **The actual checkpoint**: airplane mode on the phone, confirm app shell
+      still loads and is navigable
+
+Resume from "open the network URL on phone" next session.
 
 ## Testing strategy
 
@@ -121,8 +141,8 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 41 tests passing across `inventory`, `restock`,
-`sales`, `retailers`, and `payments` test files.
+Run `npm run test`. Currently 46 tests passing across `inventory`, `restock`,
+`sales`, `retailers`, `payments`, and `aging` test files.
 
 ## Known gotchas
 
