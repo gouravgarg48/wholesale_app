@@ -1,5 +1,6 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
+import { monotonicNow } from './clock';
 
 type InventoryItem = WholesaleDB['inventory']['value'];
 
@@ -17,7 +18,7 @@ export async function createInventoryItem(
     ...input,
     id: crypto.randomUUID(),
     quantity: 0, // new items start at zero; stock arrives via restock
-    createdAt: Date.now(),
+    createdAt: monotonicNow(),
   };
   await db.add('inventory', item);
   return item;

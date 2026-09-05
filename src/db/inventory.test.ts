@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { convertToBaseUnit, convertFromBaseUnit } from './inventory';
 import type { WholesaleDB } from './schema';
+import { monotonicNow } from './clock';
 
 type InventoryItem = WholesaleDB['inventory']['value'];
 
@@ -11,7 +12,7 @@ const mockItem: InventoryItem = {
   unitConversions: { bag: 50 },
   quantity: 0,
   marketPrice: 60,
-  createdAt: Date.now(),
+  createdAt: monotonicNow(),
 };
 
 describe('convertToBaseUnit', () => {

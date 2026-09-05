@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { getDB, closeDB } from './schema';
 import { createInventoryItem } from './inventory';
 import { createRestock } from './restock';
-import { createSale } from './sales';
+import { createSale, getRetailerBalance } from './sales';
 
 afterEach(async () => {
   await closeDB();
@@ -118,5 +118,30 @@ describe('createSale', () => {
 
   it('rejects an empty items array', async () => {
     await expect(createSale({ saleType: 'CASH', buyerName: 'Test', items: [] })).rejects.toThrow();
+  });
+});
+
+describe('getRetailerBalance', () => {
+  it('sums unpaid amounts across active sales for a retailer', async () => {
+    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+
+    await createSale({
+      saleType: 'RETAIL',
+      retailerId: 'r1',
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+    });
+    await createSale({
+      saleType: 'RETAIL',
+      retailerId: 'r1',
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+    });
+
+    const balance = await getRetailerBalance('r1');
+    expect(balance).toBe(10 * 60 + 5 * 60);
+  });
+
+  it('returns 0 for a retailer with no sales', async () => {
+    expect(await getRetailerBalance('nobody')).toBe(0);
   });
 });

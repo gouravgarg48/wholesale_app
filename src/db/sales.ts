@@ -1,6 +1,7 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
 import { convertToBaseUnit } from './inventory';
+import { monotonicNow } from './clock';
 
 type SaleItemInput = { inventoryId: string; unit: string; quantity: number; salePrice: number };
 
@@ -66,7 +67,7 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
       saleType: input.saleType,
       buyerName: input.saleType === 'CASH' ? input.buyerName.trim() : undefined,
       retailerId: input.saleType === 'RETAIL' ? input.retailerId : undefined,
-      date: Date.now(),
+      date: monotonicNow(),
       items: input.items,
       totalAmount,
       status: 'active',
@@ -74,7 +75,7 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
       // RETAIL sales start unpaid until a payment allocates against them.
       amountPaid: input.saleType === 'CASH' ? totalAmount : 0,
       paymentStatus: input.saleType === 'CASH' ? 'paid' : 'unpaid',
-      createdAt: Date.now(),
+      createdAt: monotonicNow(),
     };
 
     await salesStore.add(saleRecord);
@@ -90,4 +91,17 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
     tx.done.catch(() => {});
     throw err;
   }
+}
+
+/**
+ * A retailer's current balance is derived, not stored — sum of
+ * (totalAmount - amountPaid) across their active sales. Cancelled sales
+ * don't count toward balance.
+ */
+export async function getRetailerBalance(retailerId: string): Promise<number> {
+  const db = await getDB();
+  const sales = await db.getAllFromIndex('sales', 'by-retailer', retailerId);
+  return sales
+    .filter((s) => s.status === 'active')
+    .reduce((sum, s) => sum + (s.totalAmount - s.amountPaid), 0);
 }

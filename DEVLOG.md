@@ -530,3 +530,72 @@ A couple of deliberate details:
 correct non-zero quantity renders in the inventory table. First time real stock
 numbers (not just `0`) have been seen on screen rather than only in test
 assertions.
+
+## 15. Retailer UI, balance display, sale UI, and payment flow
+
+Built in sequence: `RetailerForm`/`RetailerList` (with live balance shown per
+retailer, derived from `getRetailerBalance()` rather than stored), `SaleForm`
+(CASH/RETAIL toggle, retailer picker, sale price pre-filled from
+`marketPrice` but editable), and `createPayment()`.
+
+Retailer table shows balance in red/bold when it exceeds credit limit — first
+real UI signal that the credit-limit rule means something, not just a stored
+number nobody looks at.
+
+## 16. Payment allocation — FIFO, and a real timestamp bug
+
+`createPayment()` allocates a payment across a retailer's unpaid sales,
+oldest first (FIFO), same atomic-transaction pattern as restock/sale. Sales
+are sorted by `date` to determine "oldest."
+
+### Bug caught by the FIFO test, not by us
+
+The FIFO test (pay ₹400 across two ₹300 sales — first should fully settle,
+second should end up ₹100 paid) failed on first run: `expect(paid).toBe('paid')`
+got `'partial'` instead. Both sales were created via `createSale()` calls with
+no real time gap between them in the test — meaning both got the exact same
+`Date.now()` millisecond timestamp. Once two records tie on `date`, sort order
+between them falls back to whatever IndexedDB's index cursor happens to return
+first — not creation order. So "oldest first" silently broke exactly in the
+one case that matters: sales entered in rapid succession, which is completely
+normal at a real shop counter, not just a test artifact.
+
+**Fix:** a monotonic clock (`src/db/clock.ts`) that guarantees strictly
+increasing timestamps even within the same millisecond:
+
+```ts
+let lastTimestamp = 0;
+export function monotonicNow(): number {
+  const now = Date.now();
+  if (now <= lastTimestamp) {
+    lastTimestamp += 1;
+    return lastTimestamp;
+  }
+  lastTimestamp = now;
+  return now;
+}
+```
+
+Replaced every stored `date`/`createdAt` field across `inventory.ts`,
+`restock.ts`, `sales.ts`, `retailers.ts`, and `payments.ts` with this instead
+of raw `Date.now()`.
+
+**Lesson, worth remembering for the upcoming aging view:** any code that
+orders records by a stored timestamp needs a monotonicity guarantee, not just
+"usually different values." Wall-clock time is not a safe sort key when
+records can be created faster than 1ms apart — and in an interactive app,
+that's not a rare edge case, it's Tuesday.
+
+### Test coverage (`src/db/payments.test.ts`, 7 tests)
+
+- Payment exactly covering one sale settles it fully
+- Partial payment applied correctly
+- **FIFO split test**: ₹400 across two ₹300 sales — first fully paid, second
+  partially paid with the exact remainder — this is the test that caught the
+  timestamp bug above
+- Payment exceeding total owed is rejected
+- CASH sales and already-paid sales are correctly skipped during allocation
+- Non-positive amount rejected
+- Payment against a retailer with nothing owed is rejected
+
+✅ 41/41 tests passing across all six test files after the clock fix.

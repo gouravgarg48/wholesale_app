@@ -39,7 +39,7 @@ src/
   db/                    — schema + all IndexedDB access (data layer)
   features/
     inventory/           — inventory list, add-product, restock UI
-    ledger/              — (not yet built)
+    ledger/              — retailers, sales, payments UI
     billing/             — (not yet built)
   components/            — shared UI (not yet populated)
 ```
@@ -71,26 +71,41 @@ Full schema in `src/db/schema.ts`. Key design points:
   stock. Delete and recreate the product instead if the unit was wrong.
 - Waste/loss tracking was cut from v1 scope (can be added back later as its own
   store, same shape as `restock`).
+- **Timestamps use a monotonic clock (`src/db/clock.ts`), not raw `Date.now()`.**
+  Any two records created within the same millisecond would otherwise get
+  identical timestamps, breaking anything that orders by date — this bit
+  payment FIFO allocation directly (see Known gotchas). `monotonicNow()` is a
+  drop-in replacement wherever a stored `date`/`createdAt` field is set.
 
 ## Current state
 
 **Phase 1 (foundation) — complete.** Scaffold, PWA + verified offline caching,
 git/GitHub, folder structure, IndexedDB schema.
 
-**Phase 2 (inventory core) — in progress.**
+**Phase 2 (inventory core) — complete.**
 
 Done:
 - Inventory CRUD: create, edit (`marketPrice`, `productName`,
   `unitConversions` only — `quantity`/`baseUnit` are not editable, enforced at
   the type level)
 - Restock flow: data layer + UI, atomic transaction proven by tests
-- Sale flow: data layer only (`src/db/sales.ts`), including the stock-check
-  rule (can't sell more than exists) — **no UI yet**
+- Sale flow: data layer + UI, CASH/RETAIL types, stock-check rule (can't sell
+  more than exists)
+- Retailer CRUD: data layer + UI, including live balance shown per retailer
+  (derived from unpaid sales, not stored)
+
+**Phase 3 (ledger core) — in progress.**
+
+Done:
+- Payment entry: FIFO allocation across a retailer's oldest unpaid sales
+  first, updates each sale's `amountPaid`/`paymentStatus`, atomic transaction
+  proven by tests (including an exact-split case across two sales)
 
 Not yet built:
-- [ ] Sale UI
-- [ ] Retailer CRUD (needed before RETAIL sales are usable end-to-end through
-      the UI)
+- [ ] Credit limit + aging view (balance-over-limit is visually flagged in the
+      retailer table already; a dedicated aging-by-days view is not built)
+- [ ] Cancel/return flow (`createReturn()` — reverses a sale's amount, restores
+      inventory atomically)
 - [ ] ESLint + Prettier compatibility (`eslint-config-prettier`) — low priority
 
 ## Testing strategy
@@ -106,8 +121,8 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 23 tests passing across `inventory`, `restock`,
-and `sales` test files.
+Run `npm run test`. Currently 41 tests passing across `inventory`, `restock`,
+`sales`, `retailers`, and `payments` test files.
 
 ## Known gotchas
 
@@ -121,3 +136,11 @@ and `sales` test files.
   `tsconfig.app.json` has `"exclude": ["src/**/*.test.ts"]`.
 - **Production build required to test PWA behavior** — `npm run dev` does not
   activate the service worker; use `npm run build && npm run preview`.
+- **Raw `Date.now()` isn't safe for anything that orders records by
+  timestamp.** Two records created in the same millisecond get identical
+  timestamps, and sort order between ties falls back to unspecified index
+  behavior — not creation order. This broke FIFO payment allocation in
+  testing (two sales created back-to-back tied on `date`, and the "oldest
+  first" allocation picked the wrong one). Fixed with a monotonic clock
+  (`src/db/clock.ts`) — use `monotonicNow()` instead of `Date.now()` for any
+  stored `date`/`createdAt` field, anywhere in the app.

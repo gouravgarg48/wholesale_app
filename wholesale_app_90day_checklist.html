@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wholesale App — 90 Day Build Tracker</title>
+<style>
+  :root {
+    --ink: #1c1a17;
+    --paper: #faf7f2;
+    --line: #ddd6ca;
+    --ledger-green: #3f5d43;
+    --ledger-green-dim: #7c9481;
+    --stamp-red: #a13d2e;
+    --gold: #b8863b;
+    --card: #ffffff;
+    --muted: #8a8378;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Courier New', ui-monospace, Menlo, monospace;
+    padding: 24px 16px 80px;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  header {
+    border-bottom: 3px double var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+
+  .ledger-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    margin: 0 0 6px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .progress-block {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .progress-track {
+    flex: 1;
+    height: 10px;
+    background: var(--line);
+    border: 1px solid var(--ink);
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--ledger-green);
+    transition: width 0.4s ease;
+  }
+
+  .progress-num {
+    font-size: 13px;
+    font-weight: bold;
+    white-space: nowrap;
+  }
+
+  .hours-summary {
+    display: flex;
+    gap: 18px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .hours-summary b { color: var(--ink); }
+
+  .phase {
+    background: var(--card);
+    border: 1px solid var(--line);
+    margin-bottom: 14px;
+    position: relative;
+  }
+
+  .phase-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+    border-left: 4px solid var(--line);
+    transition: border-color 0.3s ease;
+  }
+
+  .phase.complete .phase-head {
+    border-left-color: var(--ledger-green);
+  }
+
+  .phase-title-group { display: flex; flex-direction: column; gap: 2px; }
+
+  .phase-week {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: bold;
+  }
+
+  .phase-title {
+    font-family: Georgia, serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .phase-meta {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .phase-check {
+    font-size: 16px;
+    color: var(--ledger-green-dim);
+  }
+  .phase.complete .phase-check { color: var(--ledger-green); }
+
+  .chevron {
+    transition: transform 0.25s ease;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .phase.open .chevron { transform: rotate(90deg); }
+
+  .phase-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .phase.open .phase-body { max-height: 900px; }
+
+  .phase-body-inner {
+    padding: 4px 16px 16px 16px;
+    border-top: 1px dashed var(--line);
+  }
+
+  .task {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #eee8dc;
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .task:last-of-type { border-bottom: none; }
+
+  .task input[type="checkbox"] {
+    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--ledger-green);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .task label { cursor: pointer; flex: 1; }
+  .task.done label { color: var(--muted); text-decoration: line-through; }
+
+  .checkpoint {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: #f4f0e6;
+    border-left: 3px solid var(--stamp-red);
+    font-size: 12px;
+    font-style: italic;
+    color: #5a4d3a;
+  }
+  .checkpoint b { font-style: normal; color: var(--stamp-red); text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
+
+  .note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: #eef1ea;
+    border-left: 3px solid var(--ledger-green);
+    font-size: 12px;
+    color: #3c4a3e;
+  }
+  .note b { color: var(--ledger-green); }
+
+  footer {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .reset-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .reset-btn:hover { border-color: var(--stamp-red); color: var(--stamp-red); }
+
+  .status-line { font-size: 11px; color: var(--muted); min-height: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="ledger-label">Family Wholesale Business — Internal Tool</div>
+    <h1>90-Day Build Tracker</h1>
+    <p class="subtitle">Single-device PWA · Ledger, Inventory &amp; Billing · ~36 hrs/week</p>
+    <p class="subtitle" style="margin-top:4px;">Last synced with actual progress: Phase 1 complete, Phase 2 mostly complete (Sale UI in progress)</p>
+    <div class="progress-block">
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="progress-num" id="progressNum">0%</div>
+    </div>
+    <div class="hours-summary">
+      <span><b id="tasksDone">0</b>/<span id="tasksTotal">0</span> tasks</span>
+      <span><b id="phasesDone">0</b>/7 phases</span>
+    </div>
+  </header>
+
+  <div id="phaseContainer"></div>
+
+  <footer>
+    <div class="status-line" id="statusLine"></div>
+    <button class="reset-btn" id="resetBtn">Reset all progress</button>
+  </footer>
+
+</div>
+
+<script>
+const PHASES = [
+  {
+    id: "p1",
+    week: "Weeks 1–2 · ~70 hrs",
+    title: "Foundation",
+    tasks: [
+      "Set up dev environment and project scaffold",
+      "Configure React + PWA basics (manifest, service worker skeleton)",
+      "Build and test basic offline caching — app loads with no internet",
+      "Design IndexedDB schema: retailers, products, sales, payments, inventory"
+    ],
+    checkpoint: "Empty app shell installs on your phone and a test Android phone, opens offline.",
+    note: "Schema landed with some deliberate changes from the original plan: no per-retailer price overrides (pricing is per-sale-line instead), no separate inventory event-log table (cached quantity + immutable resource tables instead), no separate payment↔bill join table (inline allocations array on each payment instead). See the project skill file, Section 2, for full reasoning."
+  },
+  {
+    id: "p2",
+    week: "Weeks 3–4 · ~70 hrs",
+    title: "Inventory Core",
+    tasks: [
+      "Product catalog: add/edit product, base unit, unit conversion logic",
+      "Restock (stock-in) flow — atomic transaction with inventory, cost tracking",
+      "Sale flow — data layer (atomic transaction, CASH/RETAIL types, overselling prevented)",
+      "Sale flow — UI",
+      "Retailer CRUD — data layer",
+      "Retailer CRUD — UI",
+      "Inline inventory editing (market price, name, unit conversions — quantity/base unit deliberately not editable)",
+      "Inventory audit trail — satisfied via immutable, timestamped restock/sale/return records rather than a separate event-log table"
+    ],
+    checkpoint: "Can add products, restock them, sell them (CASH or to a retailer), edit prices, and see accurate running inventory — all backed by tested atomic transactions.",
+    note: "Waste/loss entries deliberately cut from v1 scope during implementation (tracked manually on paper for now) — can be added back later as its own table, same shape as restock. Retailer CRUD and sale data-layer work got pulled forward from Phase 3 since they were natural extensions of inventory work; Phase 3 below has been adjusted accordingly."
+  },
+  {
+    id: "p3",
+    week: "Weeks 5–6 · ~70 hrs",
+    title: "Ledger Core",
+    tasks: [
+      "~~Retailer profiles~~ — done in Phase 2",
+      "~~Per-retailer price override~~ — cut from scope, superseded by per-sale-line pricing (already implemented in Phase 2)",
+      "~~Sale creation (deducts inventory, creates bill)~~ — data layer done in Phase 2; confirm UI is fully wired",
+      "Payment entry — full/partial, allocated across one or multiple sales (inline allocations array on each payment, no separate join table)",
+      "Credit limit + aging view (computed directly from each sale's amountPaid/paymentStatus fields)",
+      "Cancel/return flow — createReturn() data layer + UI (reverses sale amount, restores inventory atomically)"
+    ],
+    checkpoint: "Full sale → payment → balance cycle works correctly with real test data.",
+    note: "Get your dad tapping through this by end of this phase if you can — catching data model issues now is far cheaper than catching them in week 10."
+  },
+  {
+    id: "p4",
+    week: "Week 7 · ~35 hrs",
+    title: "Billing / Print",
+    tasks: [
+      "Build A5 print template",
+      "3-copy print flow via browser print dialog",
+      "Test on the actual shop printer early — margins, paper size, browser print quirks"
+    ],
+    checkpoint: "A real bill prints correctly on the actual shop printer."
+  },
+  {
+    id: "p5",
+    week: "Weeks 8–9 · ~65 hrs",
+    title: "Backup / Persistence",
+    tasks: [
+      "Call navigator.storage.persist() on load",
+      "Build Google OAuth flow",
+      "Google Drive API integration",
+      "Background sync logic: check connectivity, export DB, upload, retry",
+      "48-hour fallback nag if backup hasn't succeeded"
+    ],
+    checkpoint: "Kill the app, clear cache manually, restore successfully from a Drive backup — this is the test that actually matters."
+  },
+  {
+    id: "p6",
+    week: "Weeks 10–11 · ~70 hrs",
+    title: "UI Pass for a Non-Developer User",
+    tasks: [
+      "Big touch targets, minimal text entry",
+      "Obvious separate flows for sale / payment / stock-in — not buried in menus",
+      "Put it in your dad's hands mid-phase, watch him use it unaided",
+      "React to real usability problems — budget time for this, don't just build"
+    ],
+    checkpoint: "Dad completes a full day's worth of test transactions unaided.",
+    note: "This phase most often runs over. If any week is going to blow the budget, it's this one — plan for it."
+  },
+  {
+    id: "p7",
+    week: "Weeks 12–13 · ~50–60 hrs",
+    title: "Real-World Pilot + Bug Fixing",
+    tasks: [
+      "Run app alongside manual process (paper as fallback), not instead of it",
+      "Fix issues — especially printing, unit conversion edge cases, Drive sync reliability",
+      "Confirm one full week where the app was the primary billing method"
+    ],
+    checkpoint: "One full week where the app was the primary billing method, manual process was just backup."
+  }
+];
+
+const STORAGE_KEY = "wholesale-app-90day-progress";
+
+// Baseline reflecting actual progress as of the last sync with the real repo.
+// Only applied when there's no saved state yet for a given task — if you've
+// already been tapping checkboxes in this tracker, your taps win.
+const SEED_STATE = {
+  "p1-t0": true, "p1-t1": true, "p1-t2": true, "p1-t3": true,
+  "p2-t0": true, "p2-t1": true, "p2-t2": true, "p2-t4": true,
+  "p2-t6": true, "p2-t7": true
+};
+
+let state = {}; // { taskId: true/false }
+
+function taskId(phaseId, idx) { return phaseId + "-t" + idx; }
+
+async function loadState() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY, false);
+    if (result && result.value) {
+      const saved = JSON.parse(result.value);
+      state = { ...SEED_STATE, ...saved };
+    } else {
+      state = { ...SEED_STATE };
+      await saveState(); // persist the seed immediately so it's not lost
+    }
+  } catch (e) {
+    state = { ...SEED_STATE };
+  }
+}
+
+async function saveState() {
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    setStatus("Saved");
+    setTimeout(() => setStatus(""), 1200);
+  } catch (e) {
+    setStatus("Couldn't save — try again");
+  }
+}
+
+function setStatus(msg) {
+  document.getElementById("statusLine").textContent = msg;
+}
+
+function render() {
+  const container = document.getElementById("phaseContainer");
+  container.innerHTML = "";
+
+  let totalTasks = 0, doneTasks = 0, phasesDone = 0;
+
+  PHASES.forEach((phase) => {
+    const phaseTaskIds = phase.tasks.map((_, i) => taskId(phase.id, i));
+    const phaseDoneCount = phaseTaskIds.filter(id => state[id]).length;
+    const isComplete = phaseDoneCount === phase.tasks.length;
+    if (isComplete) phasesDone++;
+    totalTasks += phase.tasks.length;
+    doneTasks += phaseDoneCount;
+
+    const phaseEl = document.createElement("div");
+    phaseEl.className = "phase" + (isComplete ? " complete" : "");
+    phaseEl.id = "phase-" + phase.id;
+
+    const head = document.createElement("div");
+    head.className = "phase-head";
+    head.innerHTML = `
+      <div class="phase-title-group">
+        <div class="phase-week">${phase.week}</div>
+        <div class="phase-title">${phase.title}</div>
+      </div>
+      <div class="phase-meta">
+        <span class="phase-check">${isComplete ? "✓ done" : phaseDoneCount + "/" + phase.tasks.length}</span>
+        <span class="chevron">▶</span>
+      </div>
+    `;
+    head.addEventListener("click", () => {
+      phaseEl.classList.toggle("open");
+    });
+
+    const body = document.createElement("div");
+    body.className = "phase-body";
+    const bodyInner = document.createElement("div");
+    bodyInner.className = "phase-body-inner";
+
+    phase.tasks.forEach((taskText, idx) => {
+      const id = taskId(phase.id, idx);
+      const isDone = !!state[id];
+      const taskEl = document.createElement("div");
+      taskEl.className = "task" + (isDone ? " done" : "");
+      taskEl.innerHTML = `
+        <input type="checkbox" id="${id}" ${isDone ? "checked" : ""}>
+        <label for="${id}">${taskText}</label>
+      `;
+      const checkbox = taskEl.querySelector("input");
+      checkbox.addEventListener("change", async (e) => {
+        state[id] = e.target.checked;
+        await saveState();
+        render();
+        // reopen this phase after re-render
+        document.getElementById("phase-" + phase.id).classList.add("open");
+      });
+      bodyInner.appendChild(taskEl);
+    });
+
+    const checkpointEl = document.createElement("div");
+    checkpointEl.className = "checkpoint";
+    checkpointEl.innerHTML = `<b>Checkpoint</b><br>${phase.checkpoint}`;
+    bodyInner.appendChild(checkpointEl);
+
+    if (phase.note) {
+      const noteEl = document.createElement("div");
+      noteEl.className = "note";
+      noteEl.innerHTML = `<b>Note:</b> ${phase.note}`;
+      bodyInner.appendChild(noteEl);
+    }
+
+    body.appendChild(bodyInner);
+    phaseEl.appendChild(head);
+    phaseEl.appendChild(body);
+    container.appendChild(phaseEl);
+  });
+
+  const pct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.getElementById("progressNum").textContent = pct + "%";
+  document.getElementById("tasksDone").textContent = doneTasks;
+  document.getElementById("tasksTotal").textContent = totalTasks;
+  document.getElementById("phasesDone").textContent = phasesDone;
+}
+
+document.getElementById("resetBtn").addEventListener("click", async () => {
+  if (confirm("Reset all checklist progress? This can't be undone.")) {
+    state = {};
+    await saveState();
+    render();
+  }
+});
+
+(async () => {
+  setStatus("Loading...");
+  await loadState();
+  setStatus("");
+  render();
+  // open first incomplete phase by default
+  const firstIncomplete = PHASES.find(p => {
+    const ids = p.tasks.map((_, i) => taskId(p.id, i));
+    return ids.some(id => !state[id]);
+  });
+  if (firstIncomplete) {
+    const el = document.getElementById("phase-" + firstIncomplete.id);
+    if (el) el.classList.add("open");
+  }
+})();
+</script>
+</body>
+</html>
