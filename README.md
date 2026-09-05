@@ -128,6 +128,40 @@ actual phone. Currently mid-flow:
 
 Resume from "open the network URL on phone" next session.
 
+## Decision: multi-device sync deferred to v2 (locked in)
+
+Confirmed during phone-install testing: the phone check surfaced a real
+architecture question (`crypto.randomUUID` fails over insecure LAN origins —
+fixed with `src/db/id.ts`'s fallback), which led to explicitly deciding
+**v1 ships as originally planned**: one device is the single source of truth,
+Google Drive is backup/disaster-recovery only, **not** live sync between
+devices. Don't reopen this without new information — it was a deliberate,
+numbers-backed decision, not an oversight.
+
+**Why:** using Drive snapshot-backup as if it were sync would silently
+overwrite one device's data with another's on conflict (e.g. two devices
+selling the same stock offline) — exactly the class of silent data corruption
+this project's whole testing discipline exists to prevent. Real multi-device
+sync needs either a real backend (Firebase/Supabase) or a hand-built
+conflict-resolution protocol — genuinely new architecture, not a small
+addition.
+
+**Estimated cost comparison** (for reference if this gets revisited):
+Path 1 (v1 now, sync as a deliberate v2 later) ≈ 220-230 hrs to a real
+usable v1, +60-100 hrs for v2 sync whenever taken on. Path 2 (build sync in
+now) ≈ 340-370 hrs before anything ships — 3+ weeks later for the *first*
+usable version, with roughly the same eventual total either way. Path 1 wins
+because it gets real usage feedback ~3 weeks sooner, which should inform what
+v2 sync actually needs rather than guessing now.
+
+**Migration note for whenever v2 happens:** smaller than it might sound —
+Phase 5's Drive backup work already requires a full-database export function;
+migrating to a real backend later mostly means pointing that same export at a
+different destination, plus a new import routine and one cutover dry-run.
+Given the business's small data volume (a shop's worth of daily transactions),
+this is a one-time mechanical migration (~10-20 hrs), not an ongoing cost —
+already folded into the v2 estimate above, not an extra surprise on top of it.
+
 ## Testing strategy
 
 Per the project plan: cut UI polish before cutting tests, since ledger/

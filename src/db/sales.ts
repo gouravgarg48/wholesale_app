@@ -2,6 +2,7 @@ import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
 import { convertToBaseUnit } from './inventory';
 import { monotonicNow } from './clock';
+import { generateId } from './id';
 
 type SaleItemInput = { inventoryId: string; unit: string; quantity: number; salePrice: number };
 
@@ -63,7 +64,7 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
     }
 
     const saleRecord: SaleRecord = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       saleType: input.saleType,
       buyerName: input.saleType === 'CASH' ? input.buyerName.trim() : undefined,
       retailerId: input.saleType === 'RETAIL' ? input.retailerId : undefined,

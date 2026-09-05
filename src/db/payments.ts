@@ -1,6 +1,7 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
 import { monotonicNow } from './clock';
+import { generateId } from './id';
 
 type PaymentRecord = WholesaleDB['payments']['value'];
 type PaymentMethod = PaymentRecord['method'];
@@ -54,7 +55,7 @@ export async function createPayment(
     }
 
     const payment: PaymentRecord = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       retailerId,
       amount,
       method,

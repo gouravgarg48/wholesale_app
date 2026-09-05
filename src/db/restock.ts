@@ -2,6 +2,7 @@ import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
 import { convertToBaseUnit } from './inventory';
 import { monotonicNow } from './clock';
+import { generateId } from './id';
 
 type RestockInput = {
   items: { inventoryId: string; unit: string; quantity: number; costPricePerUnit: number }[];
@@ -40,7 +41,7 @@ export async function createRestock(input: RestockInput): Promise<RestockRecord>
     }
 
     const restockRecord: RestockRecord = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       date: monotonicNow(),
       items: input.items,
       totalCost,

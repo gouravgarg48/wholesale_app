@@ -1,6 +1,7 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
 import { monotonicNow } from './clock';
+import { generateId } from './id';
 
 type Retailer = WholesaleDB['retailers']['value'];
 type RetailerCreateInput = Omit<Retailer, 'id' | 'createdAt'>;
@@ -21,7 +22,7 @@ export async function createRetailer(input: RetailerCreateInput): Promise<Retail
   const retailer: Retailer = {
     ...input,
     name: input.name.trim(),
-    id: crypto.randomUUID(),
+    id: generateId(),
     createdAt: monotonicNow(),
   };
   await db.add('retailers', retailer);
