@@ -106,3 +106,9 @@ export async function getRetailerBalance(retailerId: string): Promise<number> {
     .filter((s) => s.status === 'active')
     .reduce((sum, s) => sum + (s.totalAmount - s.amountPaid), 0);
 }
+
+export async function listSales(): Promise<SaleRecord[]> {
+  const db = await getDB();
+  const all = await db.getAllFromIndex('sales', 'by-date');
+  return all.reverse(); // most recent first
+}

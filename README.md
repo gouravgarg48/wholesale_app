@@ -39,7 +39,7 @@ src/
   db/                    — schema + all IndexedDB access (data layer)
   features/
     inventory/           — inventory list, add-product, restock UI
-    ledger/              — retailers, sales, payments UI
+    ledger/              — retailers, sales, payments, returns, aging UI
     billing/             — (not yet built)
   components/            — shared UI (not yet populated)
 ```
@@ -100,15 +100,15 @@ Done:
 - Payment entry: FIFO allocation across a retailer's oldest unpaid sales
   first, updates each sale's `amountPaid`/`paymentStatus`, atomic transaction
   proven by tests (including an exact-split case across two sales)
-
-Done (continued):
 - Aging report: buckets each retailer's unpaid sales by days outstanding
   (current / 7+ / 15+ / 30+), sorted worst-bucket-first so the most overdue
   retailers surface at the top
+- Cancel/return flow: `createReturn()` reverses a sale's amount and restores
+  inventory atomically, with over-return prevention across multiple returns,
+  refund at sale-time price (not current market price), and RETAIL payment
+  status adjustment. UI embedded inline in `SalesList`. 10 tests.
 
 Not yet built:
-- [ ] Cancel/return flow (`createReturn()` — reverses a sale's amount, restores
-      inventory atomically)
 - [ ] ESLint + Prettier compatibility (`eslint-config-prettier`) — low priority
 
 ## Outstanding: real-device phone install check
@@ -170,13 +170,13 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Unit tests** for pure functions (unit conversion, later: bill totals,
   aging-bucket math, balance derivation)
 - **Integration tests** for transaction-boundary code (`inventory.quantity`
-  writes via restock/sale/return, payment allocation) — these are the
+  writes via restock/sale/return, payment allocation, return) — these are the
   highest-stakes spots in the app
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 46 tests passing across `inventory`, `restock`,
-`sales`, `retailers`, `payments`, and `aging` test files.
+Run `npm run test`. Currently 56 tests passing across `inventory`, `restock`,
+`sales`, `retailers`, `payments`, `returns`, and `aging` test files.
 
 ## Known gotchas
 

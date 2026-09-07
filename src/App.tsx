@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { AddProductForm } from './features/inventory/AddProductForm';
 import { InventoryList } from './features/inventory/InventoryList';
+import { AddProductForm } from './features/inventory/AddProductForm';
 import { RestockForm } from './features/inventory/RestockForm';
-import { AgingReport } from './features/ledger/AgingReport';
-import { PaymentForm } from './features/ledger/PaymentForm';
+import { SaleForm } from './features/ledger/SaleForm';
 import { RetailerForm } from './features/ledger/RetailerForm';
 import { RetailerList } from './features/ledger/RetailerList';
-import { SaleForm } from './features/ledger/SaleForm';
+import { PaymentForm } from './features/ledger/PaymentForm';
+import { AgingReport } from './features/ledger/AgingReport';
+import { SalesList } from './features/ledger/SalesList';
 
 function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -16,11 +17,12 @@ function App() {
     <div>
       <RetailerForm onCreated={refresh} />
       <RetailerList refreshTrigger={refreshTrigger} />
-      <AgingReport refreshTrigger={refreshTrigger} />
-      <PaymentForm onCreated={refresh} />
       <AddProductForm onCreated={refresh} />
       <RestockForm onCreated={refresh} />
       <SaleForm onCreated={refresh} />
+      <PaymentForm onCreated={refresh} />
+      <AgingReport refreshTrigger={refreshTrigger} />
+      <SalesList refreshTrigger={refreshTrigger} />
       <InventoryList refreshTrigger={refreshTrigger} />
     </div>
   );

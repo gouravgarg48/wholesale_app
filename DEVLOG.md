@@ -650,6 +650,51 @@ one it is each time, since the fix location differs.
 
 ✅ 46/46 tests passing across all seven test files.
 
+## 19. Return flow
+
+`src/db/returns.ts` — `createReturn()` and `getReturnableQuantities()`. Same
+atomic-transaction pattern as restock/sale, but touches three stores
+(`['returns', 'inventory', 'sales']`) since it both restores stock and adjusts
+the sale's payment status.
+
+### Design decisions
+
+- **Refund at sale-time price, not current market price.** Each return line
+  computes `quantity * salePrice` using the original `salePrice` from the sale
+  record — this is what makes a return the true inverse of a sale, not a
+  best-effort approximation using today's price.
+- **Over-return prevention across multiple returns.** `computeRemainingReturnable()`
+  is a pure function that takes the sale's items and a list of prior return
+  items, then returns the remaining returnable quantity per line. This avoids
+  cross-transaction reads inside `createReturn()` — each return is
+  self-contained, checking its own limits against already-returned amounts
+  without needing to lock other in-flight returns.
+- **RETAIL payment status adjustment.** For RETAIL sales, the refund amount is
+  subtracted from `amountPaid` (not `totalAmount`), and `paymentStatus` is
+  recomputed — so a partially-paid sale that gets fully returned ends up with
+  `paymentStatus: 'paid'` and `amountPaid: 0`, not some phantom balance. CASH
+  sales are left untouched since they never touched the ledger.
+- **UI is embedded inline, not a separate route.** `ReturnForm` lives inside
+  `SalesList` — a "Return" button on each active sale row opens the form
+  inline, passing `saleId` and an `onCreated` callback that refreshes the list.
+
+### Test coverage (`src/db/returns.test.ts`, 10 tests)
+
+- Inventory quantity restored by correctly converted amount
+- Refund computed at sale-time price (not market price)
+- RETAIL sale's `amountPaid` adjusted correctly after return
+- CASH sale payment fields left untouched
+- Over-returning a single line is rejected
+- Overflow across multiple returns (returning more than remaining) is rejected
+- Return against a cancelled sale is rejected
+- Multi-item rollback: valid item first, failing item second — valid item's
+  quantity fully restored (proves the transaction unwinds, same pattern as
+  restock/sale rollback tests)
+- Empty reason is rejected
+- Return against a nonexistent sale is rejected
+
+✅ 56/56 tests passing across all eight test files.
+
 ## 18. Real-device phone install check — started, not yet complete
 
 Prompted by noticing this was actually part of Phase 1's original checkpoint
