@@ -116,6 +116,22 @@ describe('createSale', () => {
     ).rejects.toThrow(/buyer name/);
   });
 
+  it('rejects a NaN quantity or price instead of corrupting stock', async () => {
+    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+
+    await expect(
+      createSale({ saleType: 'CASH', buyerName: 'Walk-in', items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, salePrice: 60 }] })
+    ).rejects.toThrow(/positive number/);
+    await expect(
+      createSale({ saleType: 'CASH', buyerName: 'Walk-in', items: [{ inventoryId: item.id, unit: 'kg', quantity: 1, salePrice: NaN }] })
+    ).rejects.toThrow(/cannot be negative/);
+
+    const db = await getDB();
+    const unchanged = await db.get('inventory', item.id);
+    expect(unchanged?.quantity).toBe(100);
+  });
+
   it('rejects an empty items array', async () => {
     await expect(createSale({ saleType: 'CASH', buyerName: 'Test', items: [] })).rejects.toThrow();
   });

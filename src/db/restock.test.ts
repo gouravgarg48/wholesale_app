@@ -64,6 +64,21 @@ describe('createRestock', () => {
     expect(unchanged?.quantity).toBe(0);
   });
 
+  it('rejects a NaN quantity or cost price and leaves stock untouched', async () => {
+    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+
+    await expect(
+      createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, costPricePerUnit: 40 }] })
+    ).rejects.toThrow(/positive number/);
+    await expect(
+      createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: NaN }] })
+    ).rejects.toThrow(/cannot be negative/);
+
+    const db = await getDB();
+    const unchanged = await db.get('inventory', item.id);
+    expect(unchanged?.quantity).toBe(0);
+  });
+
   it('rejects an empty items array', async () => {
     await expect(createRestock({ items: [] })).rejects.toThrow();
   });

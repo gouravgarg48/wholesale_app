@@ -33,10 +33,10 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
     let totalAmount = 0;
 
     for (const item of input.items) {
-      if (item.quantity <= 0) {
-        throw new Error('Sale quantity must be positive');
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        throw new Error('Sale quantity must be a positive number');
       }
-      if (item.salePrice < 0) {
+      if (!Number.isFinite(item.salePrice) || item.salePrice < 0) {
         throw new Error('Sale price cannot be negative');
       }
 

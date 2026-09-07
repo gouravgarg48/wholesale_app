@@ -24,8 +24,11 @@ export async function createRestock(input: RestockInput): Promise<RestockRecord>
     let totalCost = 0;
 
     for (const item of input.items) {
-      if (item.quantity <= 0) {
-        throw new Error('Restock quantity must be positive');
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        throw new Error('Restock quantity must be a positive number');
+      }
+      if (!Number.isFinite(item.costPricePerUnit) || item.costPricePerUnit < 0) {
+        throw new Error('Restock cost price cannot be negative');
       }
 
       const inventoryItem = await inventoryStore.get(item.inventoryId);

@@ -88,8 +88,8 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
     let refundAmount = 0;
 
     for (const returnItem of input.items) {
-      if (returnItem.quantity <= 0) {
-        throw new Error('Return quantity must be positive');
+      if (!Number.isFinite(returnItem.quantity) || returnItem.quantity <= 0) {
+        throw new Error('Return quantity must be a positive number');
       }
 
       const saleItem = sale.items.find(

@@ -141,4 +141,17 @@ describe('createReturn', () => {
   it('rejects a return against a nonexistent sale', async () => {
     await expect(createReturn({ saleId: 'nope', items: [{ inventoryId: 'x', unit: 'kg', quantity: 1 }], reason: 'test' })).rejects.toThrow();
   });
+
+  it('rejects a NaN return quantity and leaves stock untouched', async () => {
+    const item = await setupProduct();
+    const sale = await createSale({ saleType: 'RETAIL', retailerId: 'r1', items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }] });
+
+    await expect(
+      createReturn({ saleId: sale.id, items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN }], reason: 'Test' })
+    ).rejects.toThrow(/positive number/);
+
+    const db = await getDB();
+    const after = (await db.get('inventory', item.id))!.quantity;
+    expect(after).toBe(990); // restocked 1000 - sold 10, no phantom return
+  });
 });
