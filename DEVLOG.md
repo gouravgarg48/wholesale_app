@@ -650,6 +650,23 @@ one it is each time, since the fix location differs.
 
 ✅ 46/46 tests passing across all seven test files.
 
+## 18. Real-device phone install check — started, not yet complete
+
+Prompted by noticing this was actually part of Phase 1's original checkpoint
+("app shell installs on your phone... opens offline") but had only ever been
+verified via desktop DevTools network throttling — never on an actual device.
+
+Process: `npm run build` (compiles — no `--host` flag here, that's a `preview`
+option not a `build` option, corrected after an initial mix-up), then
+`npm run preview -- --host` to serve on the local network rather than just
+localhost. Confirmed working — terminal shows both `Local:` and `Network:`
+URLs.
+
+**Stopped here for the session** — next step is opening the network URL on
+the phone (same Wi-Fi), adding to home screen, launching standalone, and the
+actual checkpoint: airplane mode with the app already open, confirming the
+shell still loads. None of that's been done yet.
+
 ## 19. Return flow
 
 `src/db/returns.ts` — `createReturn()` and `getReturnableQuantities()`. Same
@@ -695,19 +712,84 @@ the sale's payment status.
 
 ✅ 56/56 tests passing across all eight test files.
 
-## 18. Real-device phone install check — started, not yet complete
+## 20. Billing / print — A5 bill view and sequential invoice numbers
 
-Prompted by noticing this was actually part of Phase 1's original checkpoint
-("app shell installs on your phone... opens offline") but had only ever been
-verified via desktop DevTools network throttling — never on an actual device.
+Phase 4. `src/features/billing/BillPrintView.tsx` renders a sale as a printed
+A5 bill, opened from a "Print" button in `SalesList`.
 
-Process: `npm run build` (compiles — no `--host` flag here, that's a `preview`
-option not a `build` option, corrected after an initial mix-up), then
-`npm run preview -- --host` to serve on the local network rather than just
-localhost. Confirmed working — terminal shows both `Local:` and `Network:`
-URLs.
+### Business identity is hardcoded for now
 
-**Stopped here for the session** — next step is opening the network URL on
-the phone (same Wi-Fi), adding to home screen, launching standalone, and the
-actual checkpoint: airplane mode with the app already open, confirming the
-shell still loads. None of that's been done yet.
+The bill header shows Shri Ram Enterprises, 88826 36888, Naharpur Rohini —
+stored as a `BUSINESS` constant at the top of `BillPrintView.tsx`. Deliberate
+stopgap: Phase 6 (UI pass) is where this becomes an editable settings record.
+Un-printing that decision means touching both the bill view and adding a
+settings store to the schema — wait for Phase 6, it's on the plan.
+
+### Sequential invoice numbers — one per sale, stable across reprints
+
+`src/db/invoices.ts` — `assignInvoiceNumber(saleId)` issues the next number in
+sequence and stores a `{ saleId, invoiceNumber, createdAt }` record in a new
+`invoices` store. Two design points that came out of the Phase 4 questions:
+
+- **Numbers are assigned once per sale, not once per print.** A sale that's
+  printed twice must show the same invoice number both times — renumbering a
+  reprint would make the paper trail untrustworthy. `assignInvoiceNumber` is
+  idempotent: if the sale already has a number, it returns that number without
+  advancing the sequence counter.
+- **The sequence counter lives in a separate `counters` store**, keyed
+  `'invoiceNumber'`, allocated in the same atomic transaction as the `invoices`
+  record (same abort/rethrow pattern as every other transaction in this app).
+  `getInvoiceNumberForSale()` is a read-only lookup that never advances it — so
+  merely viewing a sale doesn't burn a number.
+
+Schema went to **DB version 2** with a tested upgrade path: the store-creation
+logic is now guarded with `objectStoreNames.contains(...)` so an existing v1
+database upgrades cleanly instead of trying to recreate already-existing
+stores (which throws). Tested implicitly by every test that reconnects after
+`closeDB()` — the v1→v2 upgrade is what those guard checks exercise.
+
+### Printing: the browser dialog does the work
+
+The plan says print via the browser print dialog to the shop's existing
+printer — no thermal printer, no special hardware. v1 renders **one clean A5
+bill** and the copies count is set in the dialog (that's the "single bill +
+manual copies" choice — the 3-copy *physical* output is a print-dialog setting,
+not three differently-labeled pages, at least for now).
+
+`@media print` in `src/index.css`:
+- `@page { size: A5; margin: 10mm }` — A5 page geometry
+- `body * { visibility: hidden }` then re-enable `.print-area, .print-area *` —
+  the standard "print only this subtree" trick (visibility rather than
+  display:none so the bill keeps its layout)
+- `.print-area { position: absolute; left: 0; top: 0; width: 148mm }` pins the
+  bill to the page top-left. The screen-mode toolbar (Back / Print) is hidden
+  with Tailwind's `print:hidden`.
+
+### Template cutbacks after the first real look
+
+The first version included an Amount / Received / Balance summary box and a
+PAID / PARTIALLY PAID / UNPAID status badge at the bottom. Removed at the
+user's request while reviewing the rendered bill: this business prints the
+bill *before* money changes hands on the ledger, so a balance figure baked
+into the sheet would just be wrong by print time, and the payment-status badge
+similarly describes ledger state that doesn't belong on a paper invoice. The
+bill now ends at Total with the two signature blocks.
+
+### Test coverage (`src/db/invoices.test.ts`, 5 tests)
+
+- Sequential allocation starts at 1 and increments across sales
+- Reprinting the same sale returns the same number
+- Numbers persist across a DB reconnect
+- A never-printed sale returns `undefined` from the read-only lookup
+- **Blank-page guard**: the read-only lookup doesn't advance the sequence
+
+✅ 61/61 tests passing across all nine test files (was 56/56 before the invoices file).
+
+### Backlogged: real-printer checkpoint (not done)
+
+The Phase 4 checkpoint is "a real bill prints correctly on the actual shop
+printer" — margins, paper size, and browser print quirks are exactly the kind
+of thing that only shows up on hardware. The view is built and verifiable in a
+pilot, but the checkpoint itself requires a physical print run from the shop
+printer. Not done yet, and deliberately the next thing to check after this is
+in a real browser.

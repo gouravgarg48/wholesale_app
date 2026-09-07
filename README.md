@@ -40,7 +40,7 @@ src/
   features/
     inventory/           — inventory list, add-product, restock UI
     ledger/              — retailers, sales, payments, returns, aging UI
-    billing/             — (not yet built)
+    billing/             — A5 bill print view + invoice numbering
   components/            — shared UI (not yet populated)
 ```
 
@@ -111,6 +111,23 @@ Done:
 Not yet built:
 - [ ] ESLint + Prettier compatibility (`eslint-config-prettier`) — low priority
 
+**Phase 4 (billing/print) — in progress.**
+
+Done:
+- A5 printable bill view (`BillPrintView`) — hardcoded business header (Shri Ram
+  Enterprises, Naharpur Rohini — to be made editable in Phase 6), itemized
+  line items, total, signature blocks, 3-copy print via browser dialog (single
+  clean bill; copies set in the dialog)
+- Sequential invoice numbering: `assignInvoiceNumber()` in `src/db/invoices.ts`
+  assigns once per sale, reused on reprint (stable bill numbers), backed by
+  `invoices` + `counters` stores (DB version 2). 5 tests.
+- Print CSS: `@media print` in `src/index.css` prints only the bill on A5,
+  hiding app chrome
+
+Not yet built:
+- [ ] Test on the actual shop printer — margins, paper size, browser print
+      quirks (the p4 checkpoint). Requires a physical print run.
+
 ## Outstanding: real-device phone install check
 
 **In progress, not yet confirmed.** This was actually part of Phase 1's
@@ -175,8 +192,8 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 56 tests passing across `inventory`, `restock`,
-`sales`, `retailers`, `payments`, `returns`, and `aging` test files.
+Run `npm run test`. Currently 61 tests passing across `inventory`, `restock`,
+`sales`, `retailers`, `payments`, `returns`, `aging`, and `invoices` test files.
 
 ## Known gotchas
 

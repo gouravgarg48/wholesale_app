@@ -3,6 +3,7 @@ import { listSales } from '../../db/sales';
 import { listRetailers } from '../../db/retailers';
 import type { WholesaleDB } from '../../db/schema';
 import { ReturnForm } from './ReturnForm';
+import { BillPrintView } from '../billing/BillPrintView';
 
 type Sale = WholesaleDB['sales']['value'];
 type Retailer = WholesaleDB['retailers']['value'];
@@ -11,6 +12,7 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [retailerNames, setRetailerNames] = useState<Record<string, string>>({});
   const [returningSaleId, setReturningSaleId] = useState<string | null>(null);
+  const [printingSaleId, setPrintingSaleId] = useState<string | null>(null);
 
   function load() {
     listSales().then(setSales);
@@ -58,12 +60,15 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
                     <span>{sale.paymentStatus}</span>
                   )}
                 </td>
-                <td className="px-3 py-2 border-b border-[#e4dccb] text-right">
+                <td className="px-3 py-2 border-b border-[#e4dccb] text-right whitespace-nowrap">
                   {sale.status === 'active' && (
-                    <button onClick={() => setReturningSaleId(sale.id)} className="text-sm underline">
+                    <button onClick={() => setReturningSaleId(sale.id)} className="text-sm underline mr-3">
                       Return
                     </button>
                   )}
+                  <button onClick={() => setPrintingSaleId(sale.id)} className="text-sm underline">
+                    Print
+                  </button>
                 </td>
               </tr>
             );
@@ -77,6 +82,10 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
           onCreated={handleReturnCreated}
           onCancel={() => setReturningSaleId(null)}
         />
+      )}
+
+      {printingSaleId && (
+        <BillPrintView saleId={printingSaleId} onClose={() => setPrintingSaleId(null)} />
       )}
     </div>
   );

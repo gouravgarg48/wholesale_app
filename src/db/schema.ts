@@ -107,10 +107,27 @@ export interface WholesaleDB extends DBSchema {
     };
     indexes: { 'by-retailer': string; 'by-date': number };
   };
+
+  // Bill / invoice numbers, assigned once per sale at first print and
+  // reused on every reprint — a printed bill number must stay stable.
+  invoices: {
+    key: string; // saleId — one invoice number per sale
+    value: {
+      saleId: string;
+      invoiceNumber: number;
+      createdAt: number;
+    };
+  };
+
+  // sequential counters (e.g. the invoice-number sequence)
+  counters: {
+    key: string; // counter id, e.g. 'invoiceNumber'
+    value: { id: string; value: number };
+  };
 }
 
 const DB_NAME = 'wholesale-app-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // src/db/schema.ts — replace the getDB function at the bottom with:
 
@@ -120,27 +137,47 @@ export function getDB(): Promise<IDBPDatabase<WholesaleDB>> {
   if (!dbPromise) {
     dbPromise = openDB<WholesaleDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        const retailers = db.createObjectStore('retailers', { keyPath: 'id' });
-        retailers.createIndex('by-name', 'name');
+        if (!db.objectStoreNames.contains('retailers')) {
+          const retailers = db.createObjectStore('retailers', { keyPath: 'id' });
+          retailers.createIndex('by-name', 'name');
+        }
 
-        const inventory = db.createObjectStore('inventory', { keyPath: 'id' });
-        inventory.createIndex('by-name', 'productName');
+        if (!db.objectStoreNames.contains('inventory')) {
+          const inventory = db.createObjectStore('inventory', { keyPath: 'id' });
+          inventory.createIndex('by-name', 'productName');
+        }
 
-        const sales = db.createObjectStore('sales', { keyPath: 'id' });
-        sales.createIndex('by-retailer', 'retailerId');
-        sales.createIndex('by-date', 'date');
-        sales.createIndex('by-status', 'status');
-        sales.createIndex('by-payment-status', 'paymentStatus');
+        if (!db.objectStoreNames.contains('sales')) {
+          const sales = db.createObjectStore('sales', { keyPath: 'id' });
+          sales.createIndex('by-retailer', 'retailerId');
+          sales.createIndex('by-date', 'date');
+          sales.createIndex('by-status', 'status');
+          sales.createIndex('by-payment-status', 'paymentStatus');
+        }
 
-        const restock = db.createObjectStore('restock', { keyPath: 'id' });
-        restock.createIndex('by-date', 'date');
+        if (!db.objectStoreNames.contains('restock')) {
+          const restock = db.createObjectStore('restock', { keyPath: 'id' });
+          restock.createIndex('by-date', 'date');
+        }
 
-        const returns = db.createObjectStore('returns', { keyPath: 'id' });
-        returns.createIndex('by-sale', 'saleId');
+        if (!db.objectStoreNames.contains('returns')) {
+          const returns = db.createObjectStore('returns', { keyPath: 'id' });
+          returns.createIndex('by-sale', 'saleId');
+        }
 
-        const payments = db.createObjectStore('payments', { keyPath: 'id' });
-        payments.createIndex('by-retailer', 'retailerId');
-        payments.createIndex('by-date', 'date');
+        if (!db.objectStoreNames.contains('payments')) {
+          const payments = db.createObjectStore('payments', { keyPath: 'id' });
+          payments.createIndex('by-retailer', 'retailerId');
+          payments.createIndex('by-date', 'date');
+        }
+
+        if (!db.objectStoreNames.contains('invoices')) {
+          db.createObjectStore('invoices', { keyPath: 'saleId' });
+        }
+
+        if (!db.objectStoreNames.contains('counters')) {
+          db.createObjectStore('counters', { keyPath: 'id' });
+        }
       },
     });
   }

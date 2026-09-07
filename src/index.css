@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* A5 bill printing — only the .print-area is printed; everything else
+   (app chrome, overlay) is hidden. A5 = 148mm x 210mm. */
+@media print {
+  @page {
+    size: A5;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 148mm;
+  }
+}
