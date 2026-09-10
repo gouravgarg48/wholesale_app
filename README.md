@@ -22,6 +22,21 @@ npm run format    # format all code with Prettier
 npm run format:check  # verify formatting without modifying files
 ```
 
+## Deployment
+
+**Live URL:** https://gouravgarg48.github.io/wholesale_app/
+
+Pushes to `main` auto-deploy to GitHub Pages via the workflow in
+`.github/workflows/deploy.yml`. Vite's `base: '/wholesale_app/'` in
+`vite.config.ts` rewrites all asset paths for the subdirectory — don't change
+the repo name without updating it.
+
+Manual deploy (no push): run "Deploy to GitHub Pages" → workflow_dispatch in
+the repo's Actions tab.
+
+The phone installs this as a standalone PWA — add to home screen and it opens
+offline with no server running.
+
 ## Architecture
 
 - **Vite + React + TypeScript**, PWA via `vite-plugin-pwa` (offline-capable,

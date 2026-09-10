@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+  // Deployed at https://gouravgarg48.github.io/wholesale_app/ — Vite needs
+  // this base to rewrite all asset URLs for the subdirectory.
+  base: '/wholesale_app/',
   plugins: [
     react(),
     tailwindcss(),
