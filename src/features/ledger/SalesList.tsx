@@ -29,7 +29,11 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
   }
 
   if (sales.length === 0) {
-    return <p className="max-w-2xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">No sales yet.</p>;
+    return (
+      <p className="max-w-2xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">
+        No sales yet.
+      </p>
+    );
   }
 
   return (
@@ -38,21 +42,34 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
       <table className="w-full border-collapse bg-[#faf7f2] mb-4">
         <thead>
           <tr>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Date</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Buyer</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Total</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Status</th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Date
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Buyer
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Total
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Status
+            </th>
             <th className="px-3 py-2 border-b border-[#e4dccb]"></th>
           </tr>
         </thead>
         <tbody>
           {sales.map((sale) => {
-            const buyer = sale.saleType === 'CASH' ? sale.buyerName : retailerNames[sale.retailerId!] ?? '—';
+            const buyer =
+              sale.saleType === 'CASH' ? sale.buyerName : (retailerNames[sale.retailerId!] ?? '—');
             return (
               <tr key={sale.id}>
-                <td className="px-3 py-2 border-b border-[#e4dccb] text-sm">{new Date(sale.date).toLocaleDateString()}</td>
+                <td className="px-3 py-2 border-b border-[#e4dccb] text-sm">
+                  {new Date(sale.date).toLocaleDateString()}
+                </td>
                 <td className="px-3 py-2 border-b border-[#e4dccb]">{buyer}</td>
-                <td className="px-3 py-2 border-b border-[#e4dccb]">₹{sale.totalAmount.toFixed(2)}</td>
+                <td className="px-3 py-2 border-b border-[#e4dccb]">
+                  ₹{sale.totalAmount.toFixed(2)}
+                </td>
                 <td className="px-3 py-2 border-b border-[#e4dccb] text-sm">
                   {sale.status === 'cancelled' ? (
                     <span className="text-[#b54b3a]">Cancelled</span>
@@ -62,7 +79,10 @@ export function SalesList({ refreshTrigger }: { refreshTrigger: number }) {
                 </td>
                 <td className="px-3 py-2 border-b border-[#e4dccb] text-right whitespace-nowrap">
                   {sale.status === 'active' && (
-                    <button onClick={() => setReturningSaleId(sale.id)} className="text-sm underline mr-3">
+                    <button
+                      onClick={() => setReturningSaleId(sale.id)}
+                      className="text-sm underline mr-3"
+                    >
                       Return
                     </button>
                   )}

@@ -12,7 +12,7 @@ type InventoryUpdateInput = {
 };
 
 export async function createInventoryItem(
-  input: Omit<InventoryItem, 'id' | 'quantity' | 'createdAt'>
+  input: Omit<InventoryItem, 'id' | 'quantity' | 'createdAt'>,
 ): Promise<InventoryItem> {
   const db = await getDB();
   const item: InventoryItem = {
@@ -40,18 +40,12 @@ export async function listInventory(): Promise<InventoryItem[]> {
  * e.g. if item.baseUnit is 'kg' and unitConversions = { bag: 50 },
  * convertToBaseUnit(item, 3, 'bag') => 150
  */
-export function convertToBaseUnit(
-  item: InventoryItem,
-  quantity: number,
-  unit: string
-): number {
+export function convertToBaseUnit(item: InventoryItem, quantity: number, unit: string): number {
   if (unit === item.baseUnit) return quantity;
 
   const factor = item.unitConversions[unit];
   if (factor === undefined) {
-    throw new Error(
-      `No conversion defined for unit "${unit}" on item "${item.productName}"`
-    );
+    throw new Error(`No conversion defined for unit "${unit}" on item "${item.productName}"`);
   }
   return quantity * factor;
 }
@@ -63,15 +57,13 @@ export function convertToBaseUnit(
 export function convertFromBaseUnit(
   item: InventoryItem,
   baseQuantity: number,
-  targetUnit: string
+  targetUnit: string,
 ): number {
   if (targetUnit === item.baseUnit) return baseQuantity;
 
   const factor = item.unitConversions[targetUnit];
   if (factor === undefined) {
-    throw new Error(
-      `No conversion defined for unit "${targetUnit}" on item "${item.productName}"`
-    );
+    throw new Error(`No conversion defined for unit "${targetUnit}" on item "${item.productName}"`);
   }
   return baseQuantity / factor;
 }
@@ -85,7 +77,9 @@ export function formatQuantityDisplay(item: InventoryItem): string {
   for (const [unit, factor] of Object.entries(item.unitConversions)) {
     if (factor > 0) {
       const converted = item.quantity / factor;
-      parts.push(`${converted % 1 === 0 ? converted : converted.toFixed(1)} ${unit}${converted === 1 ? '' : 's'}`);
+      parts.push(
+        `${converted % 1 === 0 ? converted : converted.toFixed(1)} ${unit}${converted === 1 ? '' : 's'}`,
+      );
     }
   }
   return parts.join(' · ');
@@ -93,7 +87,7 @@ export function formatQuantityDisplay(item: InventoryItem): string {
 
 export async function updateInventoryItem(
   id: string,
-  updates: InventoryUpdateInput
+  updates: InventoryUpdateInput,
 ): Promise<InventoryItem> {
   const db = await getDB();
   const item = await db.get('inventory', id);

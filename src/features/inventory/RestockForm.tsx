@@ -7,7 +7,7 @@ type InventoryItem = WholesaleDB['inventory']['value'];
 type RestockRow = { inventoryId: string; unit: string; quantity: string; costPricePerUnit: string };
 
 const emptyRow: RestockRow = { inventoryId: '', unit: '', quantity: '', costPricePerUnit: '' };
-const inputClass = "text-sm p-1.5 border border-[#d8cfb8] bg-white text-[#2b2620]";
+const inputClass = 'text-sm p-1.5 border border-[#d8cfb8] bg-white text-[#2b2620]';
 
 export function RestockForm({ onCreated }: { onCreated: () => void }) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -98,11 +98,17 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form className="max-w-lg mx-auto mb-8 p-6 bg-[#faf7f2] border border-[#e4dccb] font-sans text-[#2b2620]" onSubmit={handleSubmit}>
+    <form
+      className="max-w-lg mx-auto mb-8 p-6 bg-[#faf7f2] border border-[#e4dccb] font-sans text-[#2b2620]"
+      onSubmit={handleSubmit}
+    >
       <h2 className="font-serif text-xl mb-4">Record restock</h2>
 
       {rows.map((row, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-[#e4dccb] last:border-0">
+        <div
+          key={i}
+          className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-[#e4dccb] last:border-0"
+        >
           <select
             className={`${inputClass} flex-1 min-w-[140px]`}
             value={row.inventoryId}
@@ -110,7 +116,9 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
           >
             <option value="">Select product…</option>
             {inventory.map((item) => (
-              <option key={item.id} value={item.id}>{item.productName}</option>
+              <option key={item.id} value={item.id}>
+                {item.productName}
+              </option>
             ))}
           </select>
 
@@ -131,7 +139,9 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
           >
             <option value="">Unit</option>
             {unitsFor(row.inventoryId).map((u) => (
-              <option key={u} value={u}>{u}</option>
+              <option key={u} value={u}>
+                {u}
+              </option>
             ))}
           </select>
 
@@ -147,12 +157,16 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
           />
 
           {rows.length > 1 && (
-            <button type="button" onClick={() => removeRow(i)} className="text-[#b54b3a] px-1">×</button>
+            <button type="button" onClick={() => removeRow(i)} className="text-[#b54b3a] px-1">
+              ×
+            </button>
           )}
         </div>
       ))}
 
-      <button type="button" onClick={addRow} className="text-sm underline mb-4 block">+ Add another product</button>
+      <button type="button" onClick={addRow} className="text-sm underline mb-4 block">
+        + Add another product
+      </button>
 
       {error && <p className="text-[#b54b3a] text-sm mb-3">{error}</p>}
 

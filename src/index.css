@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* A5 bill printing — only the .print-area is printed; everything else
    (app chrome, overlay) is hidden. A5 = 148mm x 210mm. */

@@ -124,12 +124,21 @@ export interface WholesaleDB extends DBSchema {
     key: string; // counter id, e.g. 'invoiceNumber'
     value: { id: string; value: number };
   };
+
+  // Backup persistence state + OAuth tokens. Grows with v3 (Phase 5).
+  // Separate records keyed by purpose rather than one big document, so a
+  // token refresh doesn't rewrite the whole backup ledger (and vice versa).
+  backup: {
+    key: string; // e.g. 'state', 'google-token', 'pkce'
+    value: {
+      id: string;
+      [key: string]: number | string | boolean | undefined;
+    };
+  };
 }
 
 const DB_NAME = 'wholesale-app-db';
-const DB_VERSION = 2;
-
-// src/db/schema.ts — replace the getDB function at the bottom with:
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<WholesaleDB>> | null = null;
 
@@ -177,6 +186,10 @@ export function getDB(): Promise<IDBPDatabase<WholesaleDB>> {
 
         if (!db.objectStoreNames.contains('counters')) {
           db.createObjectStore('counters', { keyPath: 'id' });
+        }
+
+        if (!db.objectStoreNames.contains('backup')) {
+          db.createObjectStore('backup', { keyPath: 'id' });
         }
       },
     });

@@ -22,7 +22,11 @@ function formatRupees(n: number): string {
 }
 
 function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(ts).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 function invoiceNumberLabel(n: number): string {
@@ -66,7 +70,9 @@ export function BillPrintView({ saleId, onClose }: { saleId: string; onClose: ()
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 print:hidden">
         <div className="bg-white rounded-lg p-6 max-w-sm w-full text-center shadow-xl">
           <p className="mb-4 text-[#2b2620]">{error}</p>
-          <button onClick={onClose} className="px-4 py-2 bg-[#1e293b] text-white rounded-lg">Close</button>
+          <button onClick={onClose} className="px-4 py-2 bg-[#1e293b] text-white rounded-lg">
+            Close
+          </button>
         </div>
       </div>
     );
@@ -111,8 +117,12 @@ export function BillPrintView({ saleId, onClose }: { saleId: string; onClose: ()
                 <p className="text-sm">Ph: {BUSINESS.phone}</p>
               </div>
               <div className="text-right">
-                <p className="font-serif text-lg font-semibold uppercase tracking-widest">Invoice</p>
-                <p className="text-sm mt-1">No. {invoiceNumber ? invoiceNumberLabel(invoiceNumber) : '…'}</p>
+                <p className="font-serif text-lg font-semibold uppercase tracking-widest">
+                  Invoice
+                </p>
+                <p className="text-sm mt-1">
+                  No. {invoiceNumber ? invoiceNumberLabel(invoiceNumber) : '…'}
+                </p>
                 <p className="text-sm">Date: {formatDate(sale.date)}</p>
               </div>
             </div>
@@ -153,9 +163,13 @@ export function BillPrintView({ saleId, onClose }: { saleId: string; onClose: ()
                     <tr key={idx} className="border-b border-[#e4dccb]">
                       <td className="py-2 pr-2">{idx + 1}</td>
                       <td className="py-2 pr-2">{name}</td>
-                      <td className="py-2 px-2 text-right">{item.quantity} {item.unit}</td>
+                      <td className="py-2 px-2 text-right">
+                        {item.quantity} {item.unit}
+                      </td>
                       <td className="py-2 px-2 text-right">{formatRupees(item.salePrice)}</td>
-                      <td className="py-2 pl-2 text-right">{formatRupees(item.quantity * item.salePrice)}</td>
+                      <td className="py-2 pl-2 text-right">
+                        {formatRupees(item.quantity * item.salePrice)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -163,7 +177,9 @@ export function BillPrintView({ saleId, onClose }: { saleId: string; onClose: ()
                   <td className="py-3 pr-2" colSpan={4}>
                     <span className="font-semibold">Total</span>
                   </td>
-                  <td className="py-3 pl-2 text-right font-bold">{formatRupees(sale.totalAmount)}</td>
+                  <td className="py-3 pl-2 text-right font-bold">
+                    {formatRupees(sale.totalAmount)}
+                  </td>
                 </tr>
               </tbody>
             </table>

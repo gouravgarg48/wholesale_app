@@ -793,3 +793,146 @@ of thing that only shows up on hardware. The view is built and verifiable in a
 pilot, but the checkpoint itself requires a physical print run from the shop
 printer. Not done yet, and deliberately the next thing to check after this is
 in a real browser.
+
+## 21. ESLint + Prettier cleanup (the long-pending "low priority" item)
+
+The Phase 3 list had been carrying "Configure ESLint + Prettier compatibility
+(`eslint-config-prettier`)" since the scaffolding days. It stayed pending
+because it was genuinely low priority — the app only had one developer, and
+formatting disagreements between humans aren't a thing when there's one human
+— but it's the kind of debt that compounds the moment a second person (or an
+AI) starts committing to the same repo. Settled it:
+
+- **Prettier wasn't installed at all**, so the setup was: `prettier` +
+  `eslint-config-prettier` as dev deps, a `.prettierrc` (`singleQuote: true`,
+  `semi: true`, `printWidth: 100` — matches the existing hand-written style),
+  a `.prettierignore` (`dist`, `node_modules`, `package-lock.json`, the
+  checklist HTML, and **`*.md`**), and `format` / `format:check` scripts.
+- **`eslint-config-prettier` (v10) goes last in the flat config** in
+  `eslint.config.js` — that's the whole point, it *disables* ESLint's
+  formatting rules so ESLint and Prettier can't fight. (For v10 the flat
+  config is just the module's default export; no `eslint-config-prettier/flat`
+  subpath needed anymore.)
+- One-time `prettier --write .` reformatted the whole `src` tree plus the
+  config files (which had drifted — `vite.config.ts` imported without
+  semicolons and lacked a trailing newline).
+
+**Two deliberate scope decisions:**
+
+1. **Markdown is not formatted.** Prettier rewrites prose (`*why*` →
+   `_why_`, inserts blank lines, etc.) — that's churn without value on a
+   history file like DEVLOCK that's written for humans. Code and config only.
+2. **A pre-existing lint failure got fixed in the same pass, because the
+   cleanup's point is a green `npm run lint`.** Two files tripped the new
+   `react-hooks/set-state-in-effect` rule:
+   - `InventoryList`: `load()` called `setLoading(true)` synchronously inside
+     the effect. Now "Loading…" shows only on initial mount (initial state is
+     already `true`) and refreshes happen silently; the synchronous setState
+     is gone.
+   - `PaymentForm`: the effect did a synchronous `setBalance(null)` when no
+     retailer was selected. Moved that reset into the select's `onChange`
+     handler instead — same behavior, and it incidentally removes a stale-
+     balance flash window when switching retailers (the reset now happens at
+     input time, not one render later).
+
+**Lesson worth remembering:** a one-time `eslint-config-prettier` setup
+quickly surfaces whether the repo's lint was actually green before. These two
+new-rule errors predated this pass — `npm run lint` had just never been run
+against code since the react-hooks v7 rule landed.
+
+✅ `npm run lint` clean, `npm run test` 64/64 across 9 files, `npm run build`
+clean.
+
+## 22. Phase 5 — backup and persistence
+
+The next build phase after the ESLint/Prettier cleanup. Five checklist items,
+none of which need the user's Google credentials to *build* — the last mile
+(sign-in against real Google, restore on the actual phone) is config-blocked
+but the whole pipeline is written and tested. Summary of the shape:
+
+### 22.1 What's where
+
+- **`src/db/db-snapshot.ts`** — the foundation everything else sits on.
+  `exportSnapshot()` reads every store into one versioned JSON document
+  (`{ format, version, exportedAt, stores }`); `restoreSnapshot()` validates
+  it, then clears + rewrites every store inside a **single transaction** with
+  the same abort/rethrow pattern as every other transaction in this app. A
+  failed restore can't leave the DB half-old/half-new.
+  - **A stricter-than-obvious design decision:** a snapshot must contain
+    *every* store, not just a subset. Exports always include all stores, so
+    requiring them makes restore total (nothing half-merged) and makes
+    `parseSnapshot` reject obviously-made-up files.
+  - Validation rejects: wrong format string, unknown version, missing or
+    unknown stores, non-array stores, and records missing their keyPath
+    field (`saleId` for invoices, `id` everywhere else).
+  - **The restore also rewrites the `backup` store** — which carries the
+    Google token. A restored backup brings back the auth state that produced
+    it. That's intentional (tokens travel with the data).
+
+- **`src/backup/backup-state.ts`** — the backup ledger: last successful
+  backup, last attempt, consecutive-failure count, in a `backup` store (DB
+  **version 3**). Pure decision helpers `isBackupOverdue()` and
+  `shouldAttemptBackup()` (48-hour nag threshold; 1-hour back-off after
+  consecutive failures) are the tested core.
+
+- **`src/backup/scheduler.ts`** — `runBackup(force)` orchestrates: is it due?
+  online? configured? → export → upload → record success (or failure). The
+  ledger only ever changes here — the single-writer discipline, same idea as
+  inventory.quantity. Dependency injection (`now/isOnline/isConfigured/
+  upload`) is what makes it testable in Node where there's no navigator or
+  real upload path.
+
+- **`src/backup/drive.ts`** — the Google client: PKCE OAuth via a full-page
+  redirect (works in standalone PWAs, dodges popup blockers), token store in
+  the `backup` store with refresh handling, and Drive file create/list/
+  download scoped to a "Wholesale App Backups" folder via the `drive.file`
+  scope (app only ever sees its own files).
+
+- **`src/backup/config.ts`** — one constant file with an empty `clientId`.
+  The single manual setup step; the UI and scheduler notice the empty value
+  and degrade to the no-OAuth path ("not configured") rather than throwing.
+
+- **`src/backup/persistence.ts`** + `main.tsx` — `navigator.storage.persist()`
+  is requested at startup (that's the "don't let the browser evict my ledger"
+  call from the checklist) and the resulting status is shown in the panel.
+
+- **`src/features/backup/BackupPanel.tsx`** — status + the 48-hour nag (red
+  border, plain-language warning), Sign in / Back up now, storage-persistence
+  status, manual file download/restore, and the auth-callback handler that
+  cleans the `?code=...` params out of the URL after a redirect.
+
+### 22.2 Two bugs caught by our own rules, before the browser did
+
+1. **The snapshot-required-stores rule caught an eager test.** I first wrote
+   the "wipe the DB" test with `stores: {}` and expected restore to clear
+   everything. It doesn't (nothing to write = nothing cleared) — which is
+   exactly why `parseSnapshot` now rejects missing stores instead of silently
+   merging. The test forced the API to be honest.
+2. **The type system caught a widening bug.** `STORES` was declared as
+   `readonly StoreName[]` where `StoreName = keyof WholesaleDB`; spreading it
+   into `db.transaction(...)` widened the union to `string` and broke idb's
+   per-store typing. Declared the tuple `as const` and derived the union from
+   it instead — no casts needed at the call site, and the build is stricter
+   than it was before.
+
+### 22.3 The react-hooks v7 lint rules are strict — worth the match
+
+The BackupPanel triggers `react-hooks/set-state-in-effect` easily because it
+does a lot of loading on mount. The pattern that satisfies the rule: **all
+setState that runs on mount goes through `.then()` callbacks, timers, or the
+interval callback — never synchronously in the effect body.** Computed-from-
+now state (the "is it overdue?" flag) is computed in the loading callback and
+stored as state rather than calling `Date.now()` during render (`react-hooks/
+purity` flags impure calls in render). This is the third time the new-rule-set
+has made the code better rather than just quieter — see §21.
+
+### 22.4 What's deliberately not done yet
+
+- The Google client ID is empty; nothing can be tested against real Google
+  until `src/backup/config.ts` is filled in. The pure parts (PKCE verifier/
+  challenge, auth-URL construction, multipart body) are unit-tested; the
+  network calls are not.
+- The **p5 checkpoint** ("kill the app, clear cache, restore from a Drive
+  backup") needs the above plus a real device.
+
+✅ 103/103 tests across 13 files, `npm run lint` clean, `npm run build` clean.

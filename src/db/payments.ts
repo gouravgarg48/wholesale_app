@@ -9,7 +9,7 @@ type PaymentMethod = PaymentRecord['method'];
 export async function createPayment(
   retailerId: string,
   amount: number,
-  method: PaymentMethod
+  method: PaymentMethod,
 ): Promise<PaymentRecord> {
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('Payment amount must be a positive number');
@@ -33,7 +33,7 @@ export async function createPayment(
     const totalOwed = unpaidSales.reduce((sum, s) => sum + (s.totalAmount - s.amountPaid), 0);
     if (amount > totalOwed) {
       throw new Error(
-        `Payment of ₹${amount.toFixed(2)} exceeds total owed of ₹${totalOwed.toFixed(2)} — this app doesn't track advance credit balances yet`
+        `Payment of ₹${amount.toFixed(2)} exceeds total owed of ₹${totalOwed.toFixed(2)} — this app doesn't track advance credit balances yet`,
       );
     }
 

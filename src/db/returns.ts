@@ -19,7 +19,7 @@ type ReturnRecord = WholesaleDB['returns']['value'];
  */
 function computeRemainingReturnable(
   saleItems: { inventoryId: string; unit: string; quantity: number }[],
-  priorReturnItemLists: { inventoryId: string; unit: string; quantity: number }[][]
+  priorReturnItemLists: { inventoryId: string; unit: string; quantity: number }[][],
 ): Map<string, number> {
   const alreadyReturned = new Map<string, number>();
   for (const items of priorReturnItemLists) {
@@ -50,7 +50,7 @@ export async function getReturnableQuantities(saleId: string): Promise<Map<strin
   const priorReturns = await db.getAllFromIndex('returns', 'by-sale', saleId);
   return computeRemainingReturnable(
     sale.items,
-    priorReturns.map((r) => r.items)
+    priorReturns.map((r) => r.items),
   );
 }
 
@@ -82,7 +82,7 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
     const priorReturns = await returnsStore.index('by-sale').getAll(input.saleId);
     const remainingReturnable = computeRemainingReturnable(
       sale.items,
-      priorReturns.map((r) => r.items)
+      priorReturns.map((r) => r.items),
     );
 
     let refundAmount = 0;
@@ -93,11 +93,11 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
       }
 
       const saleItem = sale.items.find(
-        (i) => i.inventoryId === returnItem.inventoryId && i.unit === returnItem.unit
+        (i) => i.inventoryId === returnItem.inventoryId && i.unit === returnItem.unit,
       );
       if (!saleItem) {
         throw new Error(
-          `Sale did not include ${returnItem.quantity} ${returnItem.unit} of item ${returnItem.inventoryId}`
+          `Sale did not include ${returnItem.quantity} ${returnItem.unit} of item ${returnItem.inventoryId}`,
         );
       }
 
@@ -106,7 +106,7 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
 
       if (returnItem.quantity > remaining) {
         throw new Error(
-          `Cannot return ${returnItem.quantity} ${returnItem.unit} — only ${remaining} remaining returnable from this sale`
+          `Cannot return ${returnItem.quantity} ${returnItem.unit} — only ${remaining} remaining returnable from this sale`,
         );
       }
 
@@ -124,7 +124,8 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
 
     if (sale.saleType === 'RETAIL') {
       sale.amountPaid = Math.min(sale.amountPaid + refundAmount, sale.totalAmount);
-      sale.paymentStatus = sale.amountPaid >= sale.totalAmount ? 'paid' : sale.amountPaid > 0 ? 'partial' : 'unpaid';
+      sale.paymentStatus =
+        sale.amountPaid >= sale.totalAmount ? 'paid' : sale.amountPaid > 0 ? 'partial' : 'unpaid';
       await salesStore.put(sale);
     }
 

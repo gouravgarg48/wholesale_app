@@ -22,7 +22,9 @@ describe('createSale', () => {
       unitConversions: { bag: 50 },
       marketPrice: 60,
     });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, costPricePerUnit: 2000 }] });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, costPricePerUnit: 2000 }],
+    });
 
     await createSale({
       saleType: 'CASH',
@@ -36,8 +38,15 @@ describe('createSale', () => {
   });
 
   it('marks a CASH sale as fully paid immediately', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+    });
 
     const sale = await createSale({
       saleType: 'CASH',
@@ -50,8 +59,15 @@ describe('createSale', () => {
   });
 
   it('marks a RETAIL sale as unpaid on creation', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+    });
 
     const sale = await createSale({
       saleType: 'RETAIL',
@@ -64,15 +80,22 @@ describe('createSale', () => {
   });
 
   it('rejects a sale that exceeds available stock', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: 40 }],
+    });
 
     await expect(
       createSale({
         saleType: 'CASH',
         buyerName: 'Walk-in',
         items: [{ inventoryId: item.id, unit: 'kg', quantity: 999, salePrice: 60 }],
-      })
+      }),
     ).rejects.toThrow(/Insufficient stock/);
 
     // stock must be completely untouched after a rejected sale
@@ -82,8 +105,18 @@ describe('createSale', () => {
   });
 
   it('rolls back ALL quantity changes if one item in a multi-item sale fails', async () => {
-    const itemA = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    const itemB = await createInventoryItem({ productName: 'Sugar', baseUnit: 'kg', unitConversions: {}, marketPrice: 45 });
+    const itemA = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    const itemB = await createInventoryItem({
+      productName: 'Sugar',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 45,
+    });
     await createRestock({
       items: [
         { inventoryId: itemA.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 },
@@ -99,7 +132,7 @@ describe('createSale', () => {
           { inventoryId: itemA.id, unit: 'kg', quantity: 50, salePrice: 60 }, // valid, processed first
           { inventoryId: itemB.id, unit: 'kg', quantity: 999, salePrice: 45 }, // fails: insufficient stock
         ],
-      })
+      }),
     ).rejects.toThrow();
 
     const db = await getDB();
@@ -110,21 +143,45 @@ describe('createSale', () => {
   });
 
   it('rejects a CASH sale without a buyer name', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
     await expect(
-      createSale({ saleType: 'CASH', buyerName: '  ', items: [{ inventoryId: item.id, unit: 'kg', quantity: 1, salePrice: 60 }] })
+      createSale({
+        saleType: 'CASH',
+        buyerName: '  ',
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: 1, salePrice: 60 }],
+      }),
     ).rejects.toThrow(/buyer name/);
   });
 
   it('rejects a NaN quantity or price instead of corrupting stock', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+    });
 
     await expect(
-      createSale({ saleType: 'CASH', buyerName: 'Walk-in', items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, salePrice: 60 }] })
+      createSale({
+        saleType: 'CASH',
+        buyerName: 'Walk-in',
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, salePrice: 60 }],
+      }),
     ).rejects.toThrow(/positive number/);
     await expect(
-      createSale({ saleType: 'CASH', buyerName: 'Walk-in', items: [{ inventoryId: item.id, unit: 'kg', quantity: 1, salePrice: NaN }] })
+      createSale({
+        saleType: 'CASH',
+        buyerName: 'Walk-in',
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: 1, salePrice: NaN }],
+      }),
     ).rejects.toThrow(/cannot be negative/);
 
     const db = await getDB();
@@ -139,8 +196,15 @@ describe('createSale', () => {
 
 describe('getRetailerBalance', () => {
   it('sums unpaid amounts across active sales for a retailer', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+    });
 
     await createSale({
       saleType: 'RETAIL',

@@ -17,6 +17,9 @@ npm run dev       # dev server at http://localhost:5173
 npm run build     # production build (required to test PWA/service worker)
 npm run preview   # serve the production build locally
 npm run test      # run the test suite (Vitest)
+npm run lint      # ESLint (formatting-conflicting rules disabled via eslint-config-prettier)
+npm run format    # format all code with Prettier
+npm run format:check  # verify formatting without modifying files
 ```
 
 ## Architecture
@@ -37,10 +40,12 @@ npm run test      # run the test suite (Vitest)
 ```
 src/
   db/                    — schema + all IndexedDB access (data layer)
+  backup/                — Phase 5: snapshot, scheduler, Drive client, persistence
   features/
     inventory/           — inventory list, add-product, restock UI
     ledger/              — retailers, sales, payments, returns, aging UI
     billing/             — A5 bill print view + invoice numbering
+    backup/              — Backup panel UI (status, backlog nag, Drive, manual file)
   components/            — shared UI (not yet populated)
 ```
 
@@ -94,7 +99,7 @@ Done:
 - Retailer CRUD: data layer + UI, including live balance shown per retailer
   (derived from unpaid sales, not stored)
 
-**Phase 3 (ledger core) — in progress.**
+**Phase 3 (ledger core) — complete.**
 
 Done:
 - Payment entry: FIFO allocation across a retailer's oldest unpaid sales
@@ -108,8 +113,8 @@ Done:
   refund at sale-time price (not current market price), and RETAIL payment
   status adjustment. UI embedded inline in `SalesList`. 10 tests.
 
-Not yet built:
-- [ ] ESLint + Prettier compatibility (`eslint-config-prettier`) — low priority
+**Phase 3 — complete.** All ledger-core items done (including ESLint + Prettier
+compatibility — see DEVLOG §21).
 
 **Phase 4 (billing/print) — in progress.**
 
@@ -127,6 +132,31 @@ Done:
 Not yet built:
 - [ ] Test on the actual shop printer — margins, paper size, browser print
       quirks (the p4 checkpoint). Requires a physical print run.
+
+**Phase 5 (backup/persistence) — in progress.**
+
+Done:
+- `navigator.storage.persist()` requested on load (`src/backup/persistence.ts`),
+  status surfaced in the Backup panel
+- Full-database snapshot export + restore (`src/db/db-snapshot.ts`) — a
+  versioned, validated JSON image of every store; restore clears + rewrites
+  everything inside one transaction (rollback on failure). 14 tests.
+- Google Drive backup: PKCE OAuth (redirect flow, refresh-token handling),
+  upload/list/download against a dedicated "Wholesale App Backups" folder
+  (`src/backup/drive.ts`). Config-gated in `src/backup/config.ts` — paste your
+  Google client ID there to activate.
+- Background sync: `runBackup()` scheduler tries on load and every 30 min,
+  back-off on repeated failure, offline-aware; the Backup panel shows a red
+  48-hour "back up now" nag when nothing has succeeded recently. Scheduler +
+  ledger logic covered by tests.
+- Manual fallback that needs no Google account: download the whole DB as a
+  JSON file and restore from it.
+
+Not yet built (blocked on real credentials/hardware):
+- [ ] Create the Google OAuth client ID + paste into `src/backup/config.ts`,
+      then test sign-in → upload on a real browser/device
+- [ ] The p5 checkpoint: restore a Drive backup after clearing the app's
+      cache, on the actual phone
 
 ## Outstanding: real-device phone install check
 
@@ -192,8 +222,10 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 61 tests passing across `inventory`, `restock`,
-`sales`, `retailers`, `payments`, `returns`, `aging`, and `invoices` test files.
+Run `npm run test`. Currently 103 tests passing across the data-layer and
+backup test files (`inventory`, `restock`, `sales`, `retailers`, `payments`,
+`returns`, `aging`, `invoices`, `db-snapshot`, `backup-state`, `drive`,
+`scheduler`).
 
 ## Known gotchas
 

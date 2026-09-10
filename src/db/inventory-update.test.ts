@@ -15,8 +15,15 @@ afterEach(async () => {
 
 describe('updateInventoryItem', () => {
   it('updates market price without touching quantity', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    await createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }] });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    await createRestock({
+      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+    });
 
     const updated = await updateInventoryItem(item.id, { marketPrice: 65 });
 
@@ -25,18 +32,33 @@ describe('updateInventoryItem', () => {
   });
 
   it('rejects a non-positive market price', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
     await expect(updateInventoryItem(item.id, { marketPrice: 0 })).rejects.toThrow();
     await expect(updateInventoryItem(item.id, { marketPrice: -5 })).rejects.toThrow();
   });
 
   it('rejects an empty product name', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
     await expect(updateInventoryItem(item.id, { productName: '   ' })).rejects.toThrow();
   });
 
   it('rejects a new unit conversion that collides with baseUnit', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
     await expect(updateInventoryItem(item.id, { unitConversions: { kg: 1 } })).rejects.toThrow();
   });
 

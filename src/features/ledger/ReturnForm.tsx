@@ -80,7 +80,10 @@ export function ReturnForm({
   }
 
   return (
-    <form className="max-w-lg mx-auto mb-8 p-6 bg-[#faf7f2] border border-[#e4dccb] font-sans text-[#2b2620]" onSubmit={handleSubmit}>
+    <form
+      className="max-w-lg mx-auto mb-8 p-6 bg-[#faf7f2] border border-[#e4dccb] font-sans text-[#2b2620]"
+      onSubmit={handleSubmit}
+    >
       <h2 className="font-serif text-xl mb-4">Return items</h2>
 
       {sale.items.map((item) => {
@@ -90,7 +93,8 @@ export function ReturnForm({
         return (
           <div key={key} className="flex items-center gap-3 mb-3">
             <span className="flex-1 text-sm">
-              {productName(item.inventoryId)} — sold {item.quantity} {item.unit}, up to {max} returnable
+              {productName(item.inventoryId)} — sold {item.quantity} {item.unit}, up to {max}{' '}
+              returnable
             </span>
             <input
               type="number"
@@ -118,7 +122,11 @@ export function ReturnForm({
       {error && <p className="text-[#b54b3a] text-sm mb-3">{error}</p>}
 
       <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="bg-[#2b2620] text-[#faf7f2] border-none px-5 py-2.5 text-[0.95rem] cursor-pointer disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-[#2b2620] text-[#faf7f2] border-none px-5 py-2.5 text-[0.95rem] cursor-pointer disabled:opacity-60"
+        >
           {saving ? 'Saving…' : 'Record return'}
         </button>
         <button type="button" onClick={onCancel} className="text-sm text-[#6b6555] underline">

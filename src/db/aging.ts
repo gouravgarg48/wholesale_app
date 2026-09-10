@@ -36,16 +36,13 @@ const BUCKET_SEVERITY: Record<AgingBucket, number> = { current: 0, '7+': 1, '15+
  */
 export async function getAgingReport(asOf: number = Date.now()): Promise<RetailerAging[]> {
   const db = await getDB();
-  const [retailers, allSales] = await Promise.all([
-    db.getAll('retailers'),
-    db.getAll('sales'),
-  ]);
+  const [retailers, allSales] = await Promise.all([db.getAll('retailers'), db.getAll('sales')]);
 
   const report: RetailerAging[] = [];
 
   for (const retailer of retailers) {
     const unpaidSales = allSales.filter(
-      (s) => s.retailerId === retailer.id && s.status === 'active' && s.paymentStatus !== 'paid'
+      (s) => s.retailerId === retailer.id && s.status === 'active' && s.paymentStatus !== 'paid',
     );
 
     if (unpaidSales.length === 0) continue;
@@ -64,7 +61,7 @@ export async function getAgingReport(asOf: number = Date.now()): Promise<Retaile
     const totalOutstanding = entries.reduce((sum, e) => sum + e.amountOutstanding, 0);
     const oldestBucket = entries.reduce<AgingBucket>(
       (worst, e) => (BUCKET_SEVERITY[e.bucket] > BUCKET_SEVERITY[worst] ? e.bucket : worst),
-      'current'
+      'current',
     );
 
     report.push({

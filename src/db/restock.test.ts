@@ -32,8 +32,18 @@ describe('createRestock', () => {
   });
 
   it('computes totalCost correctly across multiple items', async () => {
-    const itemA = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
-    const itemB = await createInventoryItem({ productName: 'Sugar', baseUnit: 'kg', unitConversions: {}, marketPrice: 45 });
+    const itemA = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
+    const itemB = await createInventoryItem({
+      productName: 'Sugar',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 45,
+    });
 
     const restock = await createRestock({
       items: [
@@ -46,7 +56,12 @@ describe('createRestock', () => {
   });
 
   it('rolls back ALL quantity changes if one item in the batch is invalid', async () => {
-    const itemA = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const itemA = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
 
     await expect(
       createRestock({
@@ -54,7 +69,7 @@ describe('createRestock', () => {
           { inventoryId: itemA.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 },
           { inventoryId: 'does-not-exist', unit: 'kg', quantity: 10, costPricePerUnit: 10 },
         ],
-      })
+      }),
     ).rejects.toThrow();
 
     const db = await getDB();
@@ -65,13 +80,22 @@ describe('createRestock', () => {
   });
 
   it('rejects a NaN quantity or cost price and leaves stock untouched', async () => {
-    const item = await createInventoryItem({ productName: 'Rice', baseUnit: 'kg', unitConversions: {}, marketPrice: 60 });
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'kg',
+      unitConversions: {},
+      marketPrice: 60,
+    });
 
     await expect(
-      createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, costPricePerUnit: 40 }] })
+      createRestock({
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, costPricePerUnit: 40 }],
+      }),
     ).rejects.toThrow(/positive number/);
     await expect(
-      createRestock({ items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: NaN }] })
+      createRestock({
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: NaN }],
+      }),
     ).rejects.toThrow(/cannot be negative/);
 
     const db = await getDB();

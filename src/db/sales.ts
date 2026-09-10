@@ -53,7 +53,7 @@ export async function createSale(input: SaleInput): Promise<SaleRecord> {
       // some other write happened.
       if (baseQuantity > inventoryItem.quantity) {
         throw new Error(
-          `Insufficient stock for "${inventoryItem.productName}": have ${inventoryItem.quantity} ${inventoryItem.baseUnit}, need ${baseQuantity}`
+          `Insufficient stock for "${inventoryItem.productName}": have ${inventoryItem.quantity} ${inventoryItem.baseUnit}, need ${baseQuantity}`,
         );
       }
 

@@ -8,6 +8,7 @@ import { RetailerList } from './features/ledger/RetailerList';
 import { PaymentForm } from './features/ledger/PaymentForm';
 import { AgingReport } from './features/ledger/AgingReport';
 import { SalesList } from './features/ledger/SalesList';
+import { BackupPanel } from './features/backup/BackupPanel';
 
 function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -24,6 +25,7 @@ function App() {
       <AgingReport refreshTrigger={refreshTrigger} />
       <SalesList refreshTrigger={refreshTrigger} />
       <InventoryList refreshTrigger={refreshTrigger} />
+      <BackupPanel />
     </div>
   );
 }

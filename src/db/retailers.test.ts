@@ -45,7 +45,11 @@ describe('listRetailers', () => {
 
 describe('updateRetailer', () => {
   it('updates credit limit without touching other fields', async () => {
-    const r = await createRetailer({ name: 'Test Traders', phone: '9999999999', creditLimit: 1000 });
+    const r = await createRetailer({
+      name: 'Test Traders',
+      phone: '9999999999',
+      creditLimit: 1000,
+    });
     const updated = await updateRetailer(r.id, { creditLimit: 5000 });
     expect(updated.creditLimit).toBe(5000);
     expect(updated.phone).toBe('9999999999');

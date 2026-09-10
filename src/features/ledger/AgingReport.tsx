@@ -23,7 +23,11 @@ export function AgingReport({ refreshTrigger }: { refreshTrigger: number }) {
   }, [refreshTrigger]);
 
   if (report.length === 0) {
-    return <p className="max-w-xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">Nobody owes anything right now.</p>;
+    return (
+      <p className="max-w-xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">
+        Nobody owes anything right now.
+      </p>
+    );
   }
 
   return (

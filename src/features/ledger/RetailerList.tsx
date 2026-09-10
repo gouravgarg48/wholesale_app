@@ -13,14 +13,18 @@ export function RetailerList({ refreshTrigger }: { refreshTrigger: number }) {
     listRetailers().then(async (list) => {
       setRetailers(list);
       const entries = await Promise.all(
-        list.map(async (r) => [r.id, await getRetailerBalance(r.id)] as const)
+        list.map(async (r) => [r.id, await getRetailerBalance(r.id)] as const),
       );
       setBalances(Object.fromEntries(entries));
     });
   }, [refreshTrigger]);
 
   if (retailers.length === 0) {
-    return <p className="max-w-xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">No retailers yet.</p>;
+    return (
+      <p className="max-w-xl mx-auto my-6 text-center font-sans text-[#6b6555] text-sm">
+        No retailers yet.
+      </p>
+    );
   }
 
   return (
@@ -29,10 +33,18 @@ export function RetailerList({ refreshTrigger }: { refreshTrigger: number }) {
       <table className="w-full border-collapse bg-[#faf7f2]">
         <thead>
           <tr>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Name</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Phone</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Balance owed</th>
-            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">Credit limit</th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Name
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Phone
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Balance owed
+            </th>
+            <th className="text-left px-3 py-2 border-b border-[#e4dccb] text-sm font-semibold text-[#6b6555]">
+              Credit limit
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -43,7 +55,9 @@ export function RetailerList({ refreshTrigger }: { refreshTrigger: number }) {
               <tr key={r.id}>
                 <td className="px-3 py-2 border-b border-[#e4dccb] font-serif">{r.name}</td>
                 <td className="px-3 py-2 border-b border-[#e4dccb]">{r.phone ?? '—'}</td>
-                <td className={`px-3 py-2 border-b border-[#e4dccb] ${overLimit ? 'text-[#b54b3a] font-semibold' : ''}`}>
+                <td
+                  className={`px-3 py-2 border-b border-[#e4dccb] ${overLimit ? 'text-[#b54b3a] font-semibold' : ''}`}
+                >
                   ₹{balance.toFixed(2)}
                 </td>
                 <td className="px-3 py-2 border-b border-[#e4dccb]">₹{r.creditLimit.toFixed(2)}</td>
