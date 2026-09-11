@@ -4,6 +4,20 @@ import { monotonicNow } from './clock';
 export const SNAPSHOT_FORMAT = 'wholesale-app-snapshot';
 export const SNAPSHOT_VERSION = 1;
 
+const DEVICE_LABEL_KEY = 'device-label';
+
+/** Optional free-text label identifying which device/user produced a snapshot. */
+export async function getDeviceLabel(): Promise<string> {
+  const db = await getDB();
+  const record = await db.get('backup', DEVICE_LABEL_KEY);
+  return typeof record?.label === 'string' ? record.label : '';
+}
+
+export async function setDeviceLabel(label: string): Promise<void> {
+  const db = await getDB();
+  await db.put('backup', { id: DEVICE_LABEL_KEY, label: label.trim() });
+}
+
 /**
  * A full serializable image of every object store in the database. Stored
  * values are plain JSON-able objects, so the snapshot can be written to a
@@ -13,6 +27,8 @@ export type BackupSnapshot = {
   format: typeof SNAPSHOT_FORMAT;
   version: typeof SNAPSHOT_VERSION;
   exportedAt: number;
+  /** Device label (e.g. "Shop-1") of whoever exported — lets an admin tell files apart. */
+  exportedBy?: string;
   stores: Partial<Record<StoreName, unknown[]>>;
 };
 
@@ -47,10 +63,12 @@ export async function exportSnapshot(): Promise<BackupSnapshot> {
     stores[name] = (await db.getAll(name)) as unknown[];
   }
 
+  const exportedBy = await getDeviceLabel();
   return {
     format: SNAPSHOT_FORMAT,
     version: SNAPSHOT_VERSION,
     exportedAt: monotonicNow(),
+    ...(exportedBy ? { exportedBy } : {}),
     stores,
   };
 }
@@ -78,6 +96,15 @@ export function parseSnapshot(raw: unknown): BackupSnapshot {
   }
   if (typeof candidate.exportedAt !== 'number' || !Number.isFinite(candidate.exportedAt)) {
     throw new Error('Backup is missing a valid exportedAt timestamp');
+  }
+  const exportedBy =
+    candidate.exportedBy === undefined
+      ? undefined
+      : typeof candidate.exportedBy === 'string' && candidate.exportedBy.trim().length > 0
+        ? candidate.exportedBy
+        : null;
+  if (exportedBy === null) {
+    throw new Error('Backup exportedBy must be a non-empty string');
   }
   if (typeof candidate.stores !== 'object' || candidate.stores === null) {
     throw new Error('Backup is missing its stores object');
@@ -117,6 +144,7 @@ export function parseSnapshot(raw: unknown): BackupSnapshot {
     format: SNAPSHOT_FORMAT,
     version: SNAPSHOT_VERSION,
     exportedAt: candidate.exportedAt,
+    ...(exportedBy ? { exportedBy } : {}),
     stores: stores as BackupSnapshot['stores'],
   };
 }

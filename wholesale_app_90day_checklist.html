@@ -242,7 +242,7 @@
     <div class="ledger-label">Family Wholesale Business — Internal Tool</div>
     <h1>90-Day Build Tracker</h1>
     <p class="subtitle">Single-device PWA · Ledger, Inventory &amp; Billing · ~36 hrs/week</p>
-    <p class="subtitle" style="margin-top:4px;">Last synced with actual progress: Phases 1–3 complete, Phase 4 built (printer checkpoint pending), Phase 5 code complete (Drive client ID + phone test pending)</p>
+    <p class="subtitle" style="margin-top:4px;">Last synced with actual progress: Phases 1–3 complete, Phase 4 built (printer checkpoint pending), Phase 5 built and verified against real Google (sign-in + upload working); Drive-restore-on-phone checkpoint pending</p>
     <div class="progress-block">
       <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
       <div class="progress-num" id="progressNum">0%</div>
@@ -329,9 +329,12 @@ const PHASES = [
       "Build Google OAuth flow",
       "Google Drive API integration",
       "Background sync logic: check connectivity, export DB, upload, retry",
-      "48-hour fallback nag if backup hasn't succeeded"
+      "48-hour fallback nag if backup hasn't succeeded",
+      "Set up real Google OAuth client (Desktop application type) + verify sign-in and upload work end-to-end",
+      "Manual backup: download/restore full-DB JSON file, with device label for identifying who a file is from"
     ],
-    checkpoint: "Kill the app, clear cache manually, restore successfully from a Drive backup — this is the test that actually matters."
+    checkpoint: "Kill the app, clear cache manually, restore successfully from a Drive backup — this is the test that actually matters.",
+    note: "Google's token endpoint enforces client_secret even for Desktop clients despite the docs calling it optional — the secret ships in the bundle (sanctioned for installed apps). Uploads require the dedicated host www.googleapis.com/upload/drive/v3/files. Multi-device/manual admin routing uses the device-labeled JSON backup: user exports, developer edits, user restores."
   },
   {
     id: "p6",
@@ -370,7 +373,8 @@ const SEED_STATE = {
   "p2-t6": true, "p2-t7": true,
   "p3-t3": true, "p3-t4": true, "p3-t5": true,
   "p4-t0": true, "p4-t1": true,
-  "p5-t0": true, "p5-t1": true, "p5-t2": true, "p5-t3": true, "p5-t4": true
+  "p5-t0": true, "p5-t1": true, "p5-t2": true, "p5-t3": true, "p5-t4": true,
+  "p5-t5": true, "p5-t6": true
 };
 
 let state = {}; // { taskId: true/false }

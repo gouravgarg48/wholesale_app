@@ -7,6 +7,8 @@ import {
   exportSnapshot,
   parseSnapshot,
   restoreSnapshot,
+  getDeviceLabel,
+  setDeviceLabel,
   SNAPSHOT_FORMAT,
   SNAPSHOT_VERSION,
 } from './db-snapshot';
@@ -83,6 +85,16 @@ describe('exportSnapshot', () => {
     const roundTripped = JSON.parse(JSON.stringify(snapshot));
     expect(roundTripped.format).toBe(SNAPSHOT_FORMAT);
     expect((roundTripped.stores.sales as unknown[]).length).toBe(2);
+  });
+
+  it('records the device label when one is set, and omits it otherwise', async () => {
+    const without = await exportSnapshot();
+    expect(without.exportedBy).toBeUndefined();
+
+    await setDeviceLabel('  Shop-1  ');
+    expect(await getDeviceLabel()).toBe('Shop-1');
+    const withLabel = await exportSnapshot();
+    expect(withLabel.exportedBy).toBe('Shop-1');
   });
 });
 
@@ -243,10 +255,34 @@ describe('parseSnapshot', () => {
       format: SNAPSHOT_FORMAT,
       version: SNAPSHOT_VERSION,
       exportedAt: 5,
+      exportedBy: 'Shop-1',
       stores: { ...(await fullEmptyStores()), retailers: [{ id: 'r1', name: 'A' }] },
     };
     const parsed = parseSnapshot(value);
     expect(parsed.stores.retailers).toHaveLength(1);
+    expect(parsed.exportedBy).toBe('Shop-1');
+  });
+
+  it('passes through legacy snapshots with no exportedBy', async () => {
+    const value = {
+      format: SNAPSHOT_FORMAT,
+      version: SNAPSHOT_VERSION,
+      exportedAt: 5,
+      stores: await fullEmptyStores(),
+    };
+    const parsed = parseSnapshot(value);
+    expect(parsed.exportedBy).toBeUndefined();
+  });
+
+  it('rejects a non-string exportedBy', () => {
+    const value = {
+      format: SNAPSHOT_FORMAT,
+      version: SNAPSHOT_VERSION,
+      exportedAt: 5,
+      exportedBy: 42,
+      stores: null,
+    };
+    expect(() => parseSnapshot(value)).toThrow('exportedBy must be a non-empty string');
   });
 
   it('rejects non-object input', () => {

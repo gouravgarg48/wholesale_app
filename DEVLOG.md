@@ -936,3 +936,116 @@ has made the code better rather than just quieter — see §21.
   backup") needs the above plus a real device.
 
 ✅ 103/103 tests across 13 files, `npm run lint` clean, `npm run build` clean.
+
+## 23. Phase 5's last mile: real Google sign-in, the client-secret trap, the upload host, and manual admin routing
+
+Everything in §22 was built and unit-tested but had never talked to real Google
+— the OAuth client ID sat empty in `src/backup/config.ts`. This session filled
+that in for real and turned up three genuinely non-obvious things, in order.
+
+### 23.1 Google enforces `client_secret` even for Desktop clients
+
+The PKCE flow was written the "correct" way for a public client: no
+`client_secret` in the token exchange at all. First real test hit:
+
+```
+Token exchange failed (400): {"error": "invalid_request",
+  "error_description": "client_secret is missing." }
+```
+
+The first theory was that the empty-string `client_secret: ''` in the request
+body was the problem (Google sees an empty value as missing), so it was removed
+entirely. Same error. Then the OAuth client was switched from "Web application"
+type to "Desktop application" (Google won't let you change an existing
+client's type — you must create a new one). Still the same error.
+
+**The reality, confirmed by 2025–2026 reports and a mechanical curl test:**
+Google's token endpoint validates the *presence* of `client_secret` **before**
+it looks at anything else — the authorization code, the PKCE `code_verifier`,
+all of it — and it enforces that requirement for **Desktop clients too**, even
+though the installed-apps documentation marks the field "Optional" (the docs
+also note it's "not applicable" only for Android/iOS/Chrome clients, a nuance
+that means nothing for a redirect-based flow). An absent secret and an empty
+string fail identically; a wrong value fails even earlier with `invalid_client`.
+PKCE does **not** substitute for it.
+
+**Resolution:** ship the real `client_secret` for the Desktop application
+client, in the bundle, in the token request (`src/backup/config.ts` +
+`src/backup/drive.ts`). Google's own installed-apps guidance says the secret is
+"obviously not treated as a secret" in this context, so this is the sanctioned
+path, not the "never put secrets in client code" anti-pattern (that rule is for
+confidential web-server clients). Anyone can extract it from a PWA bundle — the
+practical exposure is that someone could impersonate the app's OAuth client in
+their *own* flows; they cannot read a user's tokens without that user's own
+consent.
+
+**Lesson:** trust behavior over docs. Google's parameter table said "Optional";
+the endpoint enforced otherwise. When one is obviously wrong, the curl test
+takes three minutes.
+
+### 23.2 `invalid_grant` after the secret fix = a stale authorization code
+
+Once the secret was accepted, the next attempt returned `invalid_grant`. This
+wasn't a code bug — the earlier failed exchanges happened *after* Google had
+issued a code, so that code was already consumed/expired by the next retry. A
+fresh sign-in (which issues a fresh code) returned **200**. If you see
+`invalid_grant` on a retry, restart the flow rather than debugging the code.
+
+### 23.3 `uploadType=multipart` lives on a *different* host
+
+The first backup upload failed with:
+
+```
+POST /files?uploadType=multipart → 400
+"Invalid JSON payload received. Unable to parse number... --wholesale-app-..."
+```
+
+The multipart body and `Content-Type: multipart/related` header were both
+correct. The problem was the **URL**: `uploadType=multipart` is only handled by
+Google's dedicated upload host:
+
+```
+https://www.googleapis.com/upload/drive/v3/files   ← correct
+https://www.googleapis.com/drive/v3/files          ← wrong (this is what the code used)
+```
+
+The plain `/drive/v3/files` endpoint has no multipart handling, so it tried to
+parse the whole body as a normal JSON request and choked on the first boundary
+line. Fix: a separate `DRIVE_UPLOAD_ENDPOINT` constant in `drive.ts`, passed to
+the shared `driveFetch()` (which now takes an optional base URL).
+
+**Lesson:** Drive's "upload" operations and "files" operations are different
+APIs with different roots even though they look like one family. When Google's
+error points at your multipart boundary with a JSON parse error, check the
+host first — the body formatting is almost certainly fine.
+
+### 23.4 Admin control, manual routing edition: device labels on backups
+
+Multi-user question came up: what does it mean for whoever opens the deployed
+app? Answer (already true by architecture): each browser/install is its own
+isolated IndexedDB, and Drive backups go to **each user's own** Drive under the
+`drive.file` scope — there is no shared state a "developer admin" could reach
+remotely. Given that, the user chose the zero-infrastructure path for developer
+access to a user's data:
+
+- User downloads a full-database JSON from the Backup panel, sends it to the
+  developer.
+- Developer edits the JSON (any store: retailers, inventory, sales, payments…).
+- Developer sends it back; user restores — replacing all local data in one
+  transaction, Drive auth included.
+
+The small gap was identifying *whose* file you're looking at. Added an optional
+**device label** (Backup panel → Manual backup): stored in the `backup` store
+under `device-label`, stamped into the snapshot as `exportedBy`, and used in
+the download filename (`wholesale-backup-<label>-<date>.json`).
+`parseSnapshot` treats `exportedBy` as optional and backward-compatible, and
+rejects a non-string value. 3 new tests (label round-trip + legacy passthrough
++ type rejection).
+
+The manual-routing decision is deliberately the simplest option and was the
+user's call; the "proper" admin path (a sync endpoint the developer controls)
+remains available later as the Google Apps Script route described in chat.
+
+✅ 106/106 tests across 13 files, `npm run lint` clean, `npm run build` clean,
+real Google sign-in verified (token exchange 200, upload to the backup folder
+returns the created file).

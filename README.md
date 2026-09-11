@@ -49,6 +49,10 @@ offline with no server running.
   Tailwind's generic defaults
 - **Vitest + fake-indexeddb** for testing — unit tests for pure logic (unit
   conversion), integration tests for transaction-boundary code (restock, sale)
+- **Multi-user behavior:** the app has no backend — every browser/install is a
+  fully isolated data store. Data lives in that device's IndexedDB, and Drive
+  backups (scoped by `drive.file`) go to *each user's own* Google Drive. No
+  shared state, no cross-user sync.
 
 ### Folder structure
 
@@ -155,24 +159,29 @@ Done:
   status surfaced in the Backup panel
 - Full-database snapshot export + restore (`src/db/db-snapshot.ts`) — a
   versioned, validated JSON image of every store; restore clears + rewrites
-  everything inside one transaction (rollback on failure). 14 tests.
-- Google Drive backup: PKCE OAuth (redirect flow, refresh-token handling),
-  upload/list/download against a dedicated "Wholesale App Backups" folder
-  (`src/backup/drive.ts`). Config-gated in `src/backup/config.ts` — paste your
-  Google client ID there to activate.
+  everything inside one transaction (rollback on failure). 17 tests.
+- Google Drive backup: **working end-to-end.** PKCE OAuth (redirect flow,
+  refresh-token handling), upload/list/download against a dedicated "Wholesale
+  App Backups" folder (`src/backup/drive.ts`). Config lives in
+  `src/backup/config.ts` (client ID + secret). Requires a **Desktop
+  application** OAuth client in Google Cloud Console — the token exchange
+  enforces `client_secret` even for Desktop clients despite the docs calling it
+  "optional," so it's shipped in the bundle (Google explicitly treats that as
+  acceptable for installed assets). Uploads go to the dedicated upload host
+  `https://www.googleapis.com/upload/drive/v3/files` — the plain
+  `/drive/v3/files` endpoint rejects `uploadType=multipart` with a JSON parse
+  error.
 - Background sync: `runBackup()` scheduler tries on load and every 30 min,
   back-off on repeated failure, offline-aware; the Backup panel shows a red
   48-hour "back up now" nag when nothing has succeeded recently. Scheduler +
   ledger logic covered by tests.
 - Manual fallback that needs no Google account: download the whole DB as a
-  JSON file and restore from it.
+  JSON file and restore from it. An optional **device label** is stamped into
+  the exported file and its filename (`wholesale-backup-<label>-<date>.json`),
+  so backups from different users/devices can be told apart when routed to a
+  developer for manual data editing.
 
-Not yet built (blocked on real credentials/hardware):
-- [ ] Create the Google OAuth client ID + paste into `src/backup/config.ts`,
-      then test sign-in → upload on a real browser/device. **Important:** the
-      Authorized redirect URI in Google Console must be
-      `https://gouravgarg48.github.io/wholesale_app/` (with trailing slash —
-      `getRedirectUri()` in config.ts builds this from `BASE_URL`).
+Not yet built (blocked on hardware):
 - [ ] The p5 checkpoint: restore a Drive backup after clearing the app's
       cache, on the actual phone
 
@@ -240,7 +249,7 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 103 tests passing across the data-layer and
+Run `npm run test`. Currently 106 tests passing across the data-layer and
 backup test files (`inventory`, `restock`, `sales`, `retailers`, `payments`,
 `returns`, `aging`, `invoices`, `db-snapshot`, `backup-state`, `drive`,
 `scheduler`).

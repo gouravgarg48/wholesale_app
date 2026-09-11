@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { exportSnapshot, restoreSnapshot } from '../../db/db-snapshot';
+import {
+  exportSnapshot,
+  restoreSnapshot,
+  getDeviceLabel,
+  setDeviceLabel,
+} from '../../db/db-snapshot';
 import { getBackupInfo, isBackupOverdue, type BackupInfo } from '../../backup/backup-state';
 import { runBackup } from '../../backup/scheduler';
 import type { BackupResult } from '../../backup/scheduler';
 import { isDriveConfigured } from '../../backup/config';
-import { beginGoogleSignIn, getGoogleToken, handleAuthCallback } from '../../backup/drive';
+import {
+  beginGoogleSignIn,
+  getGoogleToken,
+  handleAuthCallback,
+  getLastAuthError,
+} from '../../backup/drive';
 import { getPersistenceStatus, type PersistenceStatus } from '../../backup/persistence';
 
 const REFRESH_MS = 60 * 1000;
@@ -29,17 +39,20 @@ export function BackupPanel() {
   const [overdue, setOverdue] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deviceLabel, setDeviceLabelState] = useState('');
 
   const refresh = useCallback(async () => {
-    const [state, persistence, token] = await Promise.all([
+    const [state, persistence, token, label] = await Promise.all([
       getBackupInfo(),
       getPersistenceStatus(),
       getGoogleToken(),
+      getDeviceLabel(),
     ]);
     setInfo(state);
     setPersistence(persistence);
     setSignedIn(token !== null);
     setOverdue(isBackupOverdue(state, Date.now()));
+    setDeviceLabelState(label);
   }, []);
 
   // Refresh status on load and every minute.
@@ -78,7 +91,11 @@ export function BackupPanel() {
         setSignedIn(true);
         setMessage('Connected to Google Drive.');
       } else if (result === 'error' || result === 'state-mismatch') {
-        setMessage("Google sign-in didn't complete. Please try again.");
+        const detail = getLastAuthError();
+        console.error('[OAuth]', result, detail);
+        setMessage(
+          `Google sign-in didn't complete. ${detail || 'Please try again.'}`,
+        );
       }
     });
   }, []);
@@ -99,8 +116,16 @@ export function BackupPanel() {
       const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const slug = deviceLabel
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
       a.href = url;
-      a.download = `wholesale-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+      a.download = `wholesale-backup-${slug ? `${slug}-` : ''}${new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -205,6 +230,21 @@ export function BackupPanel() {
         <p className="text-sm text-[#6b6555] mb-3">
           Works without any Google setup — save a copy of your data, or restore a saved copy.
           Restoring replaces everything on this device.
+        </p>
+        <label className="flex items-center gap-2 text-sm text-[#6b6555] mb-3">
+          Device label
+          <input
+            type="text"
+            value={deviceLabel}
+            onChange={(e) => setDeviceLabelState(e.target.value)}
+            onBlur={() => void setDeviceLabel(deviceLabel)}
+            placeholder="e.g. Shop-1"
+            className="border border-[#e4dccb] bg-white px-2 py-1 text-sm text-[#2b2620] w-40"
+          />
+        </label>
+        <p className="text-xs text-[#6b6555] mb-3">
+          A label for identifying whose data this is — it appears in the backup file and in the
+          filename, handy when sharing backups with the developer.
         </p>
         <div className="flex items-center gap-3 flex-wrap">
           <button

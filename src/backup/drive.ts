@@ -9,6 +9,9 @@ const PKCE_KEY = 'google-pkce';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DRIVE_FILES_ENDPOINT = 'https://www.googleapis.com/drive/v3/files';
+// Uploads must go to the dedicated upload host — the /drive/v3/files endpoint
+// has no multipart handling and returns a JSON parse error on the boundary.
+const DRIVE_UPLOAD_ENDPOINT = 'https://www.googleapis.com/upload/drive/v3/files';
 
 export type GoogleToken = {
   accessToken: string;
@@ -199,28 +202,48 @@ export async function beginGoogleSignIn(): Promise<void> {
 }
 
 /** Result of re-entering the app from an OAuth redirect. */
-export type AuthCallbackResult = 'no-code' | 'success' | 'error' | 'state-mismatch';
+export type AuthCallbackResult =
+  | 'no-code'
+  | 'success'
+  | 'error'
+  | 'state-mismatch';
+
+/** Human-readable error detail when result is 'error'. */
+let lastAuthError = '';
+export function getLastAuthError(): string {
+  return lastAuthError;
+}
 
 /**
  * Called on app load. If the URL carries OAuth code/state, exchanges the
  * code for tokens, cleans the URL, and reports what happened. Safe to call
  * on every ordinary load (it no-ops when there's no code in the URL).
+ *
+ * PKCE record is only cleared after a successful token exchange so that
+ * transient failures (network, redirect_uri mismatch) are retryable.
  */
-export async function handleAuthCallback(params: URLSearchParams): Promise<AuthCallbackResult> {
+export async function handleAuthCallback(
+  params: URLSearchParams,
+): Promise<AuthCallbackResult> {
   const code = params.get('code');
   const state = params.get('state');
   const error = params.get('error');
-  if (error) return 'error';
+  if (error) {
+    lastAuthError = `Google returned error: ${error}`;
+    return 'error';
+  }
   if (!code || !state) return 'no-code';
 
   const stored = await getPkceRecord();
-  if (!stored || stored.state !== state) return 'state-mismatch';
-  await clearPkceRecord();
+  if (!stored || stored.state !== state) {
+    lastAuthError = 'PKCE state mismatch — possibly a page reload cleared the record.';
+    return 'state-mismatch';
+  }
 
   const body = new URLSearchParams({
     code,
     client_id: GOOGLE_DRIVE_CONFIG.clientId,
-    client_secret: '', // PKCE public client — no secret
+    client_secret: GOOGLE_DRIVE_CONFIG.clientSecret,
     redirect_uri: getRedirectUri(),
     grant_type: 'authorization_code',
     code_verifier: stored.verifier,
@@ -229,8 +252,12 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<AuthC
   try {
     const token = await postTokenRequest(body);
     await saveGoogleToken(token);
+    await clearPkceRecord();
+    lastAuthError = '';
     return 'success';
-  } catch {
+  } catch (e) {
+    lastAuthError =
+      e instanceof Error ? e.message : String(e);
     return 'error';
   }
 }
@@ -244,6 +271,7 @@ export async function getAccessToken(): Promise<string> {
 
   const body = new URLSearchParams({
     client_id: GOOGLE_DRIVE_CONFIG.clientId,
+    client_secret: GOOGLE_DRIVE_CONFIG.clientSecret,
     grant_type: 'refresh_token',
     refresh_token: token.refreshToken,
   });
@@ -258,9 +286,13 @@ export async function getAccessToken(): Promise<string> {
 
 // ---------------------------------------------------------------- Drive API
 
-async function driveFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function driveFetch(
+  path: string,
+  init: RequestInit = {},
+  baseUrl: string = DRIVE_FILES_ENDPOINT,
+): Promise<Response> {
   const accessToken = await getAccessToken();
-  return fetch(`${DRIVE_FILES_ENDPOINT}${path}`, {
+  return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -320,11 +352,15 @@ export async function uploadBackupToDrive(snapshotJson: string): Promise<DriveFi
   const metadata = { name: backupFileName(monotonicNow()), parents: [folderId] };
   const { boundary, body } = buildDriveMultipart(metadata, snapshotJson);
 
-  const res = await driveFetch('?uploadType=multipart', {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body,
-  });
+  const res = await driveFetch(
+    '?uploadType=multipart',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body,
+    },
+    DRIVE_UPLOAD_ENDPOINT,
+  );
   return (await (await ensureDriveError(res)).json()) as DriveFile;
 }
 
