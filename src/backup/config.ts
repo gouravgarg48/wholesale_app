@@ -7,9 +7,11 @@
  * To enable Drive backups:
  *   1. Google Cloud Console → create a project → enable the Drive API.
  *   2. Create an OAuth client ID (Web application). Set the Authorized
- *      JavaScript origins to your app's origin (e.g.
- *      http://localhost:5173 in dev, your https host for the phone/PWA).
- *      Add the SAME origin + "/" as an Authorized redirect URI.
+ *      JavaScript origins and Authorized redirect URIs to where the app is
+ *      actually served (both need the full base path, trailing slash):
+ *        - http://localhost:5173/wholesale_app/ (dev)
+ *        - https://gouravgarg48.github.io/wholesale_app/ (deployed)
+ *      The redirect URI must match getRedirectUri() below exactly.
  *   3. Paste the client ID below. The scope (drive.file) only ever sees
  *      files this app itself creates — not the user's whole Drive.
  */
@@ -28,5 +30,9 @@ export function isDriveConfigured(): boolean {
 
 export function getRedirectUri(): string {
   if (GOOGLE_DRIVE_CONFIG.redirectUri) return GOOGLE_DRIVE_CONFIG.redirectUri;
-  return `${window.location.origin}/`;
+  // Must land exactly where the app is actually served — including Vite's
+  // base path. On GitHub Pages that's
+  // https://gouravgarg48.github.io/wholesale_app/, not the origin root.
+  // BASE_URL always has a trailing slash (e.g. "/wholesale_app/").
+  return `${window.location.origin}${import.meta.env.BASE_URL}`;
 }

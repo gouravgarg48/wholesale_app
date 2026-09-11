@@ -169,7 +169,10 @@ Done:
 
 Not yet built (blocked on real credentials/hardware):
 - [ ] Create the Google OAuth client ID + paste into `src/backup/config.ts`,
-      then test sign-in → upload on a real browser/device
+      then test sign-in → upload on a real browser/device. **Important:** the
+      Authorized redirect URI in Google Console must be
+      `https://gouravgarg48.github.io/wholesale_app/` (with trailing slash —
+      `getRedirectUri()` in config.ts builds this from `BASE_URL`).
 - [ ] The p5 checkpoint: restore a Drive backup after clearing the app's
       cache, on the actual phone
 
