@@ -79,7 +79,7 @@ Full schema in `src/db/schema.ts`. Key design points:
 - **Billing is weight-based.** Stock is counted in whole bag/packet units; a
   line's gross weight = `quantity × weightPerUnitKg`, and its amount =
   gross weight × `salePrice` (₹/kg). The bill prints base qty, weight/unit,
-  gross weight, rate, and gross price.
+  rate, and gross price.
 - **No per-retailer price overrides** — pricing is decided per sale, not
   pre-configured per retailer.
 - **`saleType: 'CASH' | 'RETAIL'`** — CASH sales need only a `buyerName` and
@@ -148,9 +148,10 @@ compatibility — see DEVLOG §21).
 Done:
 - Weight-based A5 printable bill view (`BillPrintView`) — hardcoded business
   header (Shri Ram Enterprises, Naharpur Rohini — to be made editable in Phase
-  6), itemized lines showing base qty, weight/unit, gross weight, rate (₹/kg)
-  and gross price, totals row incl. net weight, signature blocks, 3-copy print
-  via browser dialog (single clean bill; copies set in the dialog)
+  6), itemized lines showing base qty, weight/unit, rate (₹/kg) and gross
+  price, totals row, signature blocks, 3-copy print via browser dialog (single
+  clean bill; copies set in the dialog). Gross weight was dropped from the line
+  columns to keep the bill uncluttered — it's derivable from qty × wt/unit.
 - Sequential invoice numbering: `assignInvoiceNumber()` in `src/db/invoices.ts`
   assigns once per sale, reused on reprint (stable bill numbers), backed by
   `invoices` + `counters` stores (DB version 3). 5 tests.

@@ -762,12 +762,12 @@ hidden }` trick — the app's tall layout boxes were still rendered (just not
 visible) and the browser measured *those* for pagination, spilling the bill
 across sheets. §24 covers the fix; the print CSS is now:
 
-- `@page { size: A5; margin: 8mm }` — A5 page geometry
+- `@page { size: A5; margin: 4mm }` — A5 page geometry
 - The bill preview renders into a body-level portal (`#print-scaffold`) via
   `createPortal`; at print time `#root` gets `display: none !important` and
   only the scaffold is shown, so the paginated app layout is gone entirely,
   not merely invisible.
-- `.print-area { width: 132mm }` — fits the A5 sheet with the 8mm margins.
+- `.print-area { width: 140mm }` — fits the A5 sheet with the 4mm margins.
 
 The URL/"github pages" text that appears on paper is the browser's own header
 chrome, added outside the page box — no CSS can remove that; it's a print-dialog
@@ -1071,7 +1071,9 @@ old `unitConversions`/multi-unit model was wrong for that. New model:
   unit).
 - A sale line computes: gross weight = `quantity × weightPerUnitKg`, amount =
   gross weight × `salePrice` (₹/kg). The bill shows `# | Item | Qty | Wt/unit |
-  Gross wt | Rate | Amount` so the customer can recompute it by hand.
+  Rate | Amount` so the customer can recompute it by hand. Gross weight was
+  later dropped as a separate printed column (derivable, and it made the sheet
+  cluttered), along with the column separator grid.
 - Each sale item snapshots `weightPerUnitKg` at sale time (same rule as
   `salePrice` — history never changes when a weight is edited later).
 - Returns refund on `quantity × weightPerUnitKg × salePrice` from the snapshot.
@@ -1099,8 +1101,8 @@ See §20: on the home-screen app a single bill printed across 5 sheets because
 the old `body * { visibility: hidden }` print CSS left the full app layout
 rendered, and pagination used its height. `BillPrintView` now renders its
 preview into a **portal on `document.body`** (`#print-scaffold`), and print CSS
-sets `#root { display: none !important }` plus `@page A5 / margin 8mm` and a
-132mm print area. Hidden-but-rendered layout can no longer paginate the bill.
+sets `#root { display: none !important }` plus `@page A5 / margin 4mm` and a
+140mm print area. Hidden-but-rendered layout can no longer paginate the bill.
 The "github pages" footer on paper is browser chrome, not the app.
 
 ### 24.4 Erase all local data (iOS has no "clear site data")
