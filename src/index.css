@@ -18,7 +18,7 @@
 @media print {
   @page {
     size: A5;
-    margin: 8mm;
+    margin: 4mm;
   }
 
   html,
@@ -37,6 +37,6 @@
   }
 
   #print-scaffold .print-area {
-    width: 132mm; /* A5 width minus the @page margins */
+    width: 140mm; /* A5 width minus the @page margins (148mm - 2×4mm) */
   }
 }

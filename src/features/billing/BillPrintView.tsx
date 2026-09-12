@@ -40,7 +40,6 @@ type BillRow = {
   quantity: number;
   weightPerUnitKg: number;
   ratePerKg: number;
-  grossWeightKg: number;
   amount: number;
 };
 
@@ -60,18 +59,15 @@ function BillContent({
   const rows: BillRow[] = sale.items.map((item) => {
     const product = inventory.find((p) => p.id === item.inventoryId);
     const weightPerUnitKg = item.weightPerUnitKg ?? product?.weightPerUnitKg ?? 1;
-    const grossWeightKg = item.quantity * weightPerUnitKg;
     return {
       name: product?.productName ?? 'Unknown item',
       unit: item.unit,
       quantity: item.quantity,
       weightPerUnitKg,
       ratePerKg: item.salePrice,
-      grossWeightKg,
-      amount: grossWeightKg * item.salePrice,
+      amount: item.quantity * weightPerUnitKg * item.salePrice,
     };
   });
-  const totalWeightKg = rows.reduce((sum, r) => sum + r.grossWeightKg, 0);
 
   return (
     <div className="print-area bg-white text-[#1c1a17] w-full max-w-[740px] shadow-xl rounded-sm overflow-hidden print:shadow-none print:rounded-none">
@@ -116,7 +112,6 @@ function BillContent({
               <th className="text-left py-2 pr-1 font-semibold">Item</th>
               <th className="text-right py-2 px-1 font-semibold">Qty</th>
               <th className="text-right py-2 px-1 font-semibold">Wt/unit</th>
-              <th className="text-right py-2 px-1 font-semibold">Gross wt</th>
               <th className="text-right py-2 px-1 font-semibold">Rate</th>
               <th className="text-right py-2 pl-1 font-semibold">Amount</th>
             </tr>
@@ -133,9 +128,6 @@ function BillContent({
                   {formatWeight(row.weightPerUnitKg)} kg
                 </td>
                 <td className="py-2 px-1 text-right whitespace-nowrap">
-                  {formatWeight(row.grossWeightKg)} kg
-                </td>
-                <td className="py-2 px-1 text-right whitespace-nowrap">
                   {formatRupees(row.ratePerKg)}/kg
                 </td>
                 <td className="py-2 pl-1 text-right whitespace-nowrap">
@@ -143,11 +135,10 @@ function BillContent({
                 </td>
               </tr>
             ))}
-            <tr>
+            <tr className="border-t-2 border-[#2b2620]">
               <td className="py-3 pr-1" colSpan={4}>
                 <span className="font-semibold">Total</span>
               </td>
-              <td className="py-3 px-1 text-right">{formatWeight(totalWeightKg)} kg</td>
               <td className="py-3 pl-1 text-right font-bold" colSpan={2}>
                 {formatRupees(sale.totalAmount)}
               </td>
