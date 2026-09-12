@@ -18,12 +18,12 @@ afterEach(async () => {
 async function setupProduct() {
   const item = await createInventoryItem({
     productName: 'Rice',
-    baseUnit: 'kg',
-    unitConversions: {},
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
     marketPrice: 60,
   });
   await createRestock({
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 1000, costPricePerUnit: 40 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 1000, costPricePerUnit: 40 }],
   });
   return item;
 }
@@ -34,12 +34,12 @@ describe('assignInvoiceNumber', () => {
     const saleA = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
     const saleB = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
 
     await expect(assignInvoiceNumber(saleA.id)).resolves.toBe(1);
@@ -51,7 +51,7 @@ describe('assignInvoiceNumber', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     const first = await assignInvoiceNumber(sale.id);
@@ -63,7 +63,7 @@ describe('assignInvoiceNumber', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     const number = await assignInvoiceNumber(sale.id);
@@ -79,7 +79,7 @@ describe('getInvoiceNumberForSale', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await expect(getInvoiceNumberForSale(sale.id)).resolves.toBeUndefined();
@@ -90,12 +90,12 @@ describe('getInvoiceNumberForSale', () => {
     const saleA = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
     const saleB = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
 
     await assignInvoiceNumber(saleA.id);

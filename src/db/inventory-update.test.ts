@@ -13,16 +13,20 @@ afterEach(async () => {
   });
 });
 
+async function makeItem() {
+  return createInventoryItem({
+    productName: 'Rice',
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
+    marketPrice: 60,
+  });
+}
+
 describe('updateInventoryItem', () => {
-  it('updates market price without touching quantity', async () => {
-    const item = await createInventoryItem({
-      productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
-      marketPrice: 60,
-    });
+  it('updates market price (₹/kg) without touching quantity', async () => {
+    const item = await makeItem();
     await createRestock({
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 100, costPricePerUnit: 40 }],
     });
 
     const updated = await updateInventoryItem(item.id, { marketPrice: 65 });
@@ -31,35 +35,29 @@ describe('updateInventoryItem', () => {
     expect(updated.quantity).toBe(100); // unchanged
   });
 
+  it('updates weight per unit', async () => {
+    const item = await makeItem();
+
+    const updated = await updateInventoryItem(item.id, { weightPerUnitKg: 60 });
+
+    expect(updated.weightPerUnitKg).toBe(60);
+  });
+
   it('rejects a non-positive market price', async () => {
-    const item = await createInventoryItem({
-      productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
-      marketPrice: 60,
-    });
+    const item = await makeItem();
     await expect(updateInventoryItem(item.id, { marketPrice: 0 })).rejects.toThrow();
     await expect(updateInventoryItem(item.id, { marketPrice: -5 })).rejects.toThrow();
   });
 
-  it('rejects an empty product name', async () => {
-    const item = await createInventoryItem({
-      productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
-      marketPrice: 60,
-    });
-    await expect(updateInventoryItem(item.id, { productName: '   ' })).rejects.toThrow();
+  it('rejects a non-positive weight per unit', async () => {
+    const item = await makeItem();
+    await expect(updateInventoryItem(item.id, { weightPerUnitKg: 0 })).rejects.toThrow();
+    await expect(updateInventoryItem(item.id, { weightPerUnitKg: -5 })).rejects.toThrow();
   });
 
-  it('rejects a new unit conversion that collides with baseUnit', async () => {
-    const item = await createInventoryItem({
-      productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
-      marketPrice: 60,
-    });
-    await expect(updateInventoryItem(item.id, { unitConversions: { kg: 1 } })).rejects.toThrow();
+  it('rejects an empty product name', async () => {
+    const item = await makeItem();
+    await expect(updateInventoryItem(item.id, { productName: '   ' })).rejects.toThrow();
   });
 
   it('throws for a nonexistent item', async () => {

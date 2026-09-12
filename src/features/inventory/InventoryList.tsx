@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listInventory, formatQuantityDisplay, updateInventoryItem } from '../../db/inventory';
+import { listInventory, formatStockDisplay, updateInventoryItem } from '../../db/inventory';
 import type { WholesaleDB } from '../../db/schema';
 
 type InventoryItem = WholesaleDB['inventory']['value'];
@@ -105,7 +105,7 @@ export function InventoryList({ refreshTrigger }: { refreshTrigger: number }) {
                   {item.productName}
                 </td>
                 <td className="px-3 py-2.5 border-b border-[#e4dccb]">
-                  {formatQuantityDisplay(item)}
+                  {formatStockDisplay(item)}
                 </td>
                 <td className="px-3 py-2.5 border-b border-[#e4dccb]">
                   {isEditing ? (
@@ -121,13 +121,13 @@ export function InventoryList({ refreshTrigger }: { refreshTrigger: number }) {
                           className="w-20 p-1 border border-[#d8cfb8] bg-white text-[#2b2620]"
                           autoFocus
                         />
-                        <span>/ {item.baseUnit}</span>
+                        <span>/ kg</span>
                       </div>
                       {editError && <span className="text-xs text-[#b54b3a]">{editError}</span>}
                     </div>
                   ) : (
                     <>
-                      ₹{item.marketPrice.toFixed(2)} / {item.baseUnit}
+                      ₹{item.marketPrice.toFixed(2)} / kg
                     </>
                   )}
                 </td>

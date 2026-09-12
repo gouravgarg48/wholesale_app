@@ -14,11 +14,11 @@ afterEach(async () => {
 });
 
 describe('createRestock', () => {
-  it('increases inventory quantity by the converted amount', async () => {
+  it('increases inventory quantity by the number of units received', async () => {
     const item = await createInventoryItem({
       productName: 'Basmati Rice',
-      baseUnit: 'kg',
-      unitConversions: { bag: 50 },
+      baseUnit: 'bag',
+      weightPerUnitKg: 50,
       marketPrice: 60,
     });
 
@@ -28,46 +28,61 @@ describe('createRestock', () => {
 
     const db = await getDB();
     const updated = await db.get('inventory', item.id);
-    expect(updated?.quantity).toBe(100); // 2 bags * 50kg
+    expect(updated?.quantity).toBe(2); // stock is counted in whole bags
   });
 
   it('computes totalCost correctly across multiple items', async () => {
     const itemA = await createInventoryItem({
       productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
+      baseUnit: 'bag',
+      weightPerUnitKg: 50,
       marketPrice: 60,
     });
     const itemB = await createInventoryItem({
       productName: 'Sugar',
-      baseUnit: 'kg',
-      unitConversions: {},
+      baseUnit: 'packet',
+      weightPerUnitKg: 10,
       marketPrice: 45,
     });
 
     const restock = await createRestock({
       items: [
-        { inventoryId: itemA.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 },
-        { inventoryId: itemB.id, unit: 'kg', quantity: 50, costPricePerUnit: 35 },
+        { inventoryId: itemA.id, unit: 'bag', quantity: 100, costPricePerUnit: 40 },
+        { inventoryId: itemB.id, unit: 'packet', quantity: 50, costPricePerUnit: 35 },
       ],
     });
 
     expect(restock.totalCost).toBe(100 * 40 + 50 * 35);
   });
 
+  it('rejects a unit that is not the product base unit', async () => {
+    const item = await createInventoryItem({
+      productName: 'Rice',
+      baseUnit: 'bag',
+      weightPerUnitKg: 50,
+      marketPrice: 60,
+    });
+
+    await expect(
+      createRestock({
+        items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: 40 }],
+      }),
+    ).rejects.toThrow();
+  });
+
   it('rolls back ALL quantity changes if one item in the batch is invalid', async () => {
     const itemA = await createInventoryItem({
       productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
+      baseUnit: 'bag',
+      weightPerUnitKg: 50,
       marketPrice: 60,
     });
 
     await expect(
       createRestock({
         items: [
-          { inventoryId: itemA.id, unit: 'kg', quantity: 100, costPricePerUnit: 40 },
-          { inventoryId: 'does-not-exist', unit: 'kg', quantity: 10, costPricePerUnit: 10 },
+          { inventoryId: itemA.id, unit: 'bag', quantity: 100, costPricePerUnit: 40 },
+          { inventoryId: 'does-not-exist', unit: 'bag', quantity: 10, costPricePerUnit: 10 },
         ],
       }),
     ).rejects.toThrow();
@@ -82,19 +97,19 @@ describe('createRestock', () => {
   it('rejects a NaN quantity or cost price and leaves stock untouched', async () => {
     const item = await createInventoryItem({
       productName: 'Rice',
-      baseUnit: 'kg',
-      unitConversions: {},
+      baseUnit: 'bag',
+      weightPerUnitKg: 50,
       marketPrice: 60,
     });
 
     await expect(
       createRestock({
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN, costPricePerUnit: 40 }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: NaN, costPricePerUnit: 40 }],
       }),
     ).rejects.toThrow(/positive number/);
     await expect(
       createRestock({
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, costPricePerUnit: NaN }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, costPricePerUnit: NaN }],
       }),
     ).rejects.toThrow(/cannot be negative/);
 

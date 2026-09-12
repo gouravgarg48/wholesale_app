@@ -2,7 +2,11 @@ import { getDB } from './schema';
 import { monotonicNow } from './clock';
 
 export const SNAPSHOT_FORMAT = 'wholesale-app-snapshot';
-export const SNAPSHOT_VERSION = 1;
+// v2 = weight-based billing: products have weightPerUnitKg, stock is in
+// bag/packet units, sale items snapshot weightPerUnitKg, salePrice is ₹/kg.
+// v1 backups (kg base + unit conversions) don't map onto this model cleanly,
+// so they're refused with a clear version error rather than half-restored.
+export const SNAPSHOT_VERSION = 2;
 
 const DEVICE_LABEL_KEY = 'device-label';
 

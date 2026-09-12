@@ -1,6 +1,6 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
-import { convertToBaseUnit } from './inventory';
+import { assertSellableUnit } from './inventory';
 import { generateId } from './id';
 import { monotonicNow } from './clock';
 
@@ -115,11 +115,11 @@ export async function createReturn(input: ReturnInput): Promise<ReturnRecord> {
         throw new Error(`Inventory item ${returnItem.inventoryId} not found`);
       }
 
-      const baseQuantity = convertToBaseUnit(inventoryItem, returnItem.quantity, returnItem.unit);
-      inventoryItem.quantity += baseQuantity;
+      assertSellableUnit(inventoryItem, returnItem.unit);
+      inventoryItem.quantity += returnItem.quantity;
       await inventoryStore.put(inventoryItem);
 
-      refundAmount += returnItem.quantity * saleItem.salePrice;
+      refundAmount += returnItem.quantity * (saleItem.weightPerUnitKg ?? 1) * saleItem.salePrice;
     }
 
     if (sale.saleType === 'RETAIL') {

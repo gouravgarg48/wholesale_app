@@ -22,12 +22,12 @@ const DAY = 24 * 60 * 60 * 1000;
 async function setupProduct() {
   const item = await createInventoryItem({
     productName: 'Rice',
-    baseUnit: 'kg',
-    unitConversions: {},
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
     marketPrice: 60,
   });
   await createRestock({
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 1000, costPricePerUnit: 40 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 1000, costPricePerUnit: 40 }],
   });
   return item;
 }
@@ -39,9 +39,9 @@ describe('getAgingReport', () => {
     await createSale({
       saleType: 'RETAIL',
       retailerId: retailer.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
-    });
-    await createPayment(retailer.id, 300, 'cash'); // fully settles it
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
+    }); // 5 bags = 250 kg @ ₹60 = ₹15,000
+    await createPayment(retailer.id, 15000, 'cash'); // fully settles it
 
     const report = await getAgingReport();
     expect(report.find((r) => r.retailerId === retailer.id)).toBeUndefined();
@@ -53,7 +53,7 @@ describe('getAgingReport', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: retailer.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
 
     // simulate "20 days later" by passing an explicit asOf timestamp
@@ -71,13 +71,13 @@ describe('getAgingReport', () => {
     await createSale({
       saleType: 'RETAIL',
       retailerId: retailer.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
-    }); // 600
-    await createPayment(retailer.id, 400, 'cash'); // leaves 200 outstanding
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
+    }); // 10 bags = ₹30,000
+    await createPayment(retailer.id, 10000, 'cash'); // leaves ₹20,000 outstanding
 
     const report = await getAgingReport();
     const entry = report.find((r) => r.retailerId === retailer.id);
-    expect(entry?.totalOutstanding).toBe(200);
+    expect(entry?.totalOutstanding).toBe(20000);
   });
 
   it('sorts retailers with the most overdue bucket first', async () => {
@@ -88,12 +88,12 @@ describe('getAgingReport', () => {
     const mildSale = await createSale({
       saleType: 'RETAIL',
       retailerId: mild.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
     const severeSale = await createSale({
       saleType: 'RETAIL',
       retailerId: severe.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
 
     // Directly control each sale's age rather than relying on incidental
@@ -117,12 +117,12 @@ describe('getAgingReport', () => {
     const saleA = await createSale({
       saleType: 'RETAIL',
       retailerId: retailer.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
     const saleB = await createSale({
       saleType: 'RETAIL',
       retailerId: retailer.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
 
     const report = await getAgingReport();

@@ -18,28 +18,28 @@ afterEach(async () => {
 async function setupProduct() {
   const item = await createInventoryItem({
     productName: 'Rice',
-    baseUnit: 'kg',
-    unitConversions: {},
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
     marketPrice: 60,
   });
   await createRestock({
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 1000, costPricePerUnit: 40 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 1000, costPricePerUnit: 40 }],
   });
   return item;
 }
 
 describe('createReturn', () => {
-  it('restores inventory by the returned amount', async () => {
+  it('restores inventory by the returned number of units', async () => {
     const item = await setupProduct();
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await createReturn({
       saleId: sale.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 4 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 4 }],
       reason: 'Damaged bag',
     });
 
@@ -48,21 +48,21 @@ describe('createReturn', () => {
     expect(updatedItem?.quantity).toBe(1000 - 10 + 4); // restocked - sold + returned
   });
 
-  it('computes refund using the sale-time price, not current market price', async () => {
+  it('computes refund from gross weight × sale-time ₹/kg, not current price', async () => {
     const item = await setupProduct();
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 55 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 55 }],
     }); // sold below market price
 
     const ret = await createReturn({
       saleId: sale.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 4 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 4 }],
       reason: 'Wrong item',
     });
 
-    expect(ret.refundAmount).toBe(4 * 55);
+    expect(ret.refundAmount).toBe(4 * 50 * 55); // 4 bags = 200 kg @ ₹55
   });
 
   it("reduces a RETAIL sale's outstanding balance by the refund amount", async () => {
@@ -70,18 +70,18 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
-    }); // 600 owed
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
+    }); // 10 bags @ ₹60/kg = ₹30,000 owed
 
     await createReturn({
       saleId: sale.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5 }],
       reason: 'Excess order',
-    }); // 300 credited
+    }); // 5 bags = 250 kg @ ₹60 = ₹15,000 credited
 
     const db = await getDB();
     const updated = await db.get('sales', sale.id);
-    expect(updated?.amountPaid).toBe(300);
+    expect(updated?.amountPaid).toBe(15 * 1000);
     expect(updated?.paymentStatus).toBe('partial');
   });
 
@@ -90,12 +90,12 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'CASH',
       buyerName: 'Walk-in',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await createReturn({
       saleId: sale.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 3 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 3 }],
       reason: 'Customer changed mind',
     });
 
@@ -110,13 +110,13 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await expect(
       createReturn({
         saleId: sale.id,
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: 15 }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: 15 }],
         reason: 'Too many',
       }),
     ).rejects.toThrow(/remaining returnable/);
@@ -127,20 +127,20 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await createReturn({
       saleId: sale.id,
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 6 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 6 }],
       reason: 'First return',
     });
 
-    // only 4 remain returnable; asking for 5 should fail
+    // only 4 bags remain returnable; asking for 5 should fail
     await expect(
       createReturn({
         saleId: sale.id,
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: 5 }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: 5 }],
         reason: 'Second return',
       }),
     ).rejects.toThrow(/remaining returnable/);
@@ -151,7 +151,7 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     const db = await getDB();
@@ -161,7 +161,7 @@ describe('createReturn', () => {
     await expect(
       createReturn({
         saleId: sale.id,
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: 1 }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: 1 }],
         reason: 'Too late',
       }),
     ).rejects.toThrow(/cancelled/);
@@ -171,20 +171,20 @@ describe('createReturn', () => {
     const itemA = await setupProduct();
     const itemB = await createInventoryItem({
       productName: 'Sugar',
-      baseUnit: 'kg',
-      unitConversions: {},
+      baseUnit: 'packet',
+      weightPerUnitKg: 10,
       marketPrice: 45,
     });
     await createRestock({
-      items: [{ inventoryId: itemB.id, unit: 'kg', quantity: 100, costPricePerUnit: 30 }],
+      items: [{ inventoryId: itemB.id, unit: 'packet', quantity: 100, costPricePerUnit: 30 }],
     });
 
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
       items: [
-        { inventoryId: itemA.id, unit: 'kg', quantity: 10, salePrice: 60 },
-        { inventoryId: itemB.id, unit: 'kg', quantity: 5, salePrice: 45 },
+        { inventoryId: itemA.id, unit: 'bag', quantity: 10, salePrice: 60 },
+        { inventoryId: itemB.id, unit: 'packet', quantity: 5, salePrice: 45 },
       ],
     });
 
@@ -195,8 +195,8 @@ describe('createReturn', () => {
       createReturn({
         saleId: sale.id,
         items: [
-          { inventoryId: itemA.id, unit: 'kg', quantity: 3 }, // valid, processed first
-          { inventoryId: itemB.id, unit: 'kg', quantity: 999 }, // fails: exceeds what was sold
+          { inventoryId: itemA.id, unit: 'bag', quantity: 3 }, // valid, processed first
+          { inventoryId: itemB.id, unit: 'packet', quantity: 999 }, // fails: exceeds what was sold
         ],
         reason: 'Mixed return',
       }),
@@ -211,12 +211,12 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
     await expect(
       createReturn({
         saleId: sale.id,
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: 1 }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: 1 }],
         reason: '  ',
       }),
     ).rejects.toThrow();
@@ -226,7 +226,7 @@ describe('createReturn', () => {
     await expect(
       createReturn({
         saleId: 'nope',
-        items: [{ inventoryId: 'x', unit: 'kg', quantity: 1 }],
+        items: [{ inventoryId: 'x', unit: 'bag', quantity: 1 }],
         reason: 'test',
       }),
     ).rejects.toThrow();
@@ -237,13 +237,13 @@ describe('createReturn', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await expect(
       createReturn({
         saleId: sale.id,
-        items: [{ inventoryId: item.id, unit: 'kg', quantity: NaN }],
+        items: [{ inventoryId: item.id, unit: 'bag', quantity: NaN }],
         reason: 'Test',
       }),
     ).rejects.toThrow(/positive number/);

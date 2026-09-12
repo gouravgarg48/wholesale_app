@@ -73,9 +73,13 @@ src/
 Full schema in `src/db/schema.ts`. Key design points:
 
 - **Sales are immutable once created.** Each line item snapshots its own
-  `salePrice` at time of sale — later price changes never affect historical
-  bills. Cancellation is a status flag, not an edit; corrections happen via a
-  separate `Return` record.
+  `salePrice` (₹/kg) and `weightPerUnitKg` at time of sale — later price or
+  weight changes never affect historical bills. Cancellation is a status flag,
+  not an edit; corrections happen via a separate `Return` record.
+- **Billing is weight-based.** Stock is counted in whole bag/packet units; a
+  line's gross weight = `quantity × weightPerUnitKg`, and its amount =
+  gross weight × `salePrice` (₹/kg). The bill prints base qty, weight/unit,
+  gross weight, rate, and gross price.
 - **No per-retailer price overrides** — pricing is decided per sale, not
   pre-configured per retailer.
 - **`saleType: 'CASH' | 'RETAIL'`** — CASH sales need only a `buyerName` and
@@ -90,9 +94,12 @@ Full schema in `src/db/schema.ts`. Key design points:
   would silently corrupt real data, so every write here is covered by an
   integration test that proves the transaction actually rolls back on failure,
   not just that the function throws.
-- **`baseUnit` is not editable after creation** — quantity is stored as a raw
-  number in that unit; changing it later would silently reinterpret existing
-  stock. Delete and recreate the product instead if the unit was wrong.
+- **Products are counted in whole bag/packet units** — `baseUnit` is `'bag'` or
+  `'packet'` (no kg/quintal), `quantity` is stored raw in that unit, and every
+  product requires `weightPerUnitKg` (e.g. 50 for a 50kg rice bag).
+  `marketPrice` is ₹ per kg. **`baseUnit` is not editable after creation** —
+  changing it would silently reinterpret existing stock; delete and recreate
+  the product instead.
 - Waste/loss tracking was cut from v1 scope (can be added back later as its own
   store, same shape as `restock`).
 - **Timestamps use a monotonic clock (`src/db/clock.ts`), not raw `Date.now()`.**
@@ -109,9 +116,10 @@ git/GitHub, folder structure, IndexedDB schema.
 **Phase 2 (inventory core) — complete.**
 
 Done:
-- Inventory CRUD: create, edit (`marketPrice`, `productName`,
-  `unitConversions` only — `quantity`/`baseUnit` are not editable, enforced at
-  the type level)
+- Inventory CRUD: create, edit (`marketPrice` ₹/kg, `productName`,
+  `weightPerUnitKg` only — `quantity`/`baseUnit` are not editable, enforced at
+  the type level). Product entry requires a weight per bag/packet to enable
+  weight-based billing.
 - Restock flow: data layer + UI, atomic transaction proven by tests
 - Sale flow: data layer + UI, CASH/RETAIL types, stock-check rule (can't sell
   more than exists)
@@ -138,19 +146,24 @@ compatibility — see DEVLOG §21).
 **Phase 4 (billing/print) — in progress.**
 
 Done:
-- A5 printable bill view (`BillPrintView`) — hardcoded business header (Shri Ram
-  Enterprises, Naharpur Rohini — to be made editable in Phase 6), itemized
-  line items, total, signature blocks, 3-copy print via browser dialog (single
-  clean bill; copies set in the dialog)
+- Weight-based A5 printable bill view (`BillPrintView`) — hardcoded business
+  header (Shri Ram Enterprises, Naharpur Rohini — to be made editable in Phase
+  6), itemized lines showing base qty, weight/unit, gross weight, rate (₹/kg)
+  and gross price, totals row incl. net weight, signature blocks, 3-copy print
+  via browser dialog (single clean bill; copies set in the dialog)
 - Sequential invoice numbering: `assignInvoiceNumber()` in `src/db/invoices.ts`
   assigns once per sale, reused on reprint (stable bill numbers), backed by
-  `invoices` + `counters` stores (DB version 2). 5 tests.
-- Print CSS: `@media print` in `src/index.css` prints only the bill on A5,
-  hiding app chrome
+  `invoices` + `counters` stores (DB version 3). 5 tests.
+- Print CSS: the on-screen preview copies the bill into a body-level portal
+  (`#print-scaffold`) and printing hides the whole `#root` — this is what
+  keeps a one-page bill from spilling across multiple A5 pages. The URL footer
+  seen on paper is the browser/printer's own chrome and can't be removed by the
+  app.
 
-Not yet built:
+Deferred by choice (not blocking):
 - [ ] Test on the actual shop printer — margins, paper size, browser print
-      quirks (the p4 checkpoint). Requires a physical print run.
+      quirks (the p4 checkpoint). Parking this until the pilot; printing is
+      working in the browser, only real-hardware sizing needs a physical run.
 
 **Phase 5 (backup/persistence) — in progress.**
 
@@ -159,15 +172,20 @@ Done:
   status surfaced in the Backup panel
 - Full-database snapshot export + restore (`src/db/db-snapshot.ts`) — a
   versioned, validated JSON image of every store; restore clears + rewrites
-  everything inside one transaction (rollback on failure). 17 tests.
+  everything inside one transaction (rollback on failure). **Snapshot format is
+  v2** (weight-based model); v1 snapshot files are refused with a clear
+  version error rather than being restored corruptly. 17 tests.
 - Google Drive backup: **working end-to-end.** PKCE OAuth (redirect flow,
   refresh-token handling), upload/list/download against a dedicated "Wholesale
   App Backups" folder (`src/backup/drive.ts`). Config lives in
-  `src/backup/config.ts` (client ID + secret). Requires a **Desktop
-  application** OAuth client in Google Cloud Console — the token exchange
-  enforces `client_secret` even for Desktop clients despite the docs calling it
-  "optional," so it's shipped in the bundle (Google explicitly treats that as
-  acceptable for installed assets). Uploads go to the dedicated upload host
+  `src/backup/config.ts` (client ID + secret). Requires a **Web application**
+  OAuth client in Google Cloud Console with both redirect URIs registered
+  (`http://localhost:5173/wholesale_app/` and
+  `https://gouravgarg48.github.io/wholesale_app/`) — a Desktop client only
+  accepts loopback redirects, so it breaks on the hosted origin. The token
+  exchange enforces `client_secret` even for Web clients, and since this is a
+  client-side app the secret ships in the bundle (limited to a `drive.file`
+  scope). Uploads go to the dedicated upload host
   `https://www.googleapis.com/upload/drive/v3/files` — the plain
   `/drive/v3/files` endpoint rejects `uploadType=multipart` with a JSON parse
   error.
@@ -180,27 +198,28 @@ Done:
   the exported file and its filename (`wholesale-backup-<label>-<date>.json`),
   so backups from different users/devices can be told apart when routed to a
   developer for manual data editing.
+- **Erase all local data** button in the Backup panel (two-step confirm) —
+  iOS home-screen webapps have no Safari "clear site data" menu, so this
+  in-app reset is how the p5 checkpoint (restore after clearing the app) gets
+  run on a phone. It deletes the IndexedDB database and reloads.
 
-Not yet built (blocked on hardware):
-- [ ] The p5 checkpoint: restore a Drive backup after clearing the app's
-      cache, on the actual phone
+Remaining for p5 (needs the real phone again):
+- [ ] The p5 checkpoint: restore a Drive backup after erasing the app's
+      local data, on the actual phone (erase via the Backup panel, then
+      restore from Drive)
 
-## Outstanding: real-device phone install check
+## Real-device phone install check — done
 
-**In progress, not yet confirmed.** This was actually part of Phase 1's
-original checkpoint ("app shell installs on your phone... opens offline") but
-was only ever verified via desktop DevTools network throttling, never on an
-actual phone. Currently mid-flow:
+Confirmed on the actual phone with the home-screen webapp: data persists across
+app kills, it opens/works in airplane mode (offline), and Google Drive stays
+linked. Two findings from that run:
 
-- [x] `npm run build` then `npm run preview -- --host` (serves on the local
-      network, not just localhost — confirmed working)
-- [ ] Open the network URL on phone (same Wi-Fi required)
-- [ ] Add to home screen (Android Chrome / iOS Safari)
-- [ ] Launch from home-screen icon, confirm standalone (no browser chrome)
-- [ ] **The actual checkpoint**: airplane mode on the phone, confirm app shell
-      still loads and is navigable
-
-Resume from "open the network URL on phone" next session.
+- iOS home-screen webapps have no Safari "clear site data" menu — solved with
+  the in-app **Erase all local data** button (Backup panel) so the p5 restore
+  checkpoint can be run on-device.
+- Printing a bill from the home-screen app once spilled one page of content
+  onto 5 sheets; fixed by rendering the preview into a body-level print portal
+  and hiding the app root instead of the old `visibility` trick (DEVLOG §23).
 
 ## Decision: multi-device sync deferred to v2 (locked in)
 
@@ -241,7 +260,7 @@ already folded into the v2 estimate above, not an extra surprise on top of it.
 Per the project plan: cut UI polish before cutting tests, since ledger/
 inventory bugs silently corrupt real business data. Scoped as:
 
-- **Unit tests** for pure functions (unit conversion, later: bill totals,
+- **Unit tests** for pure functions (weight/stock math, bill totals,
   aging-bucket math, balance derivation)
 - **Integration tests** for transaction-boundary code (`inventory.quantity`
   writes via restock/sale/return, payment allocation, return) — these are the
@@ -249,10 +268,10 @@ inventory bugs silently corrupt real business data. Scoped as:
 - **Skipped for now**: UI component tests, end-to-end tests — not worth it
   before the Phase 6 UI polish pass
 
-Run `npm run test`. Currently 106 tests passing across the data-layer and
-backup test files (`inventory`, `restock`, `sales`, `retailers`, `payments`,
-`returns`, `aging`, `invoices`, `db-snapshot`, `backup-state`, `drive`,
-`scheduler`).
+Run `npm run test`. Currently 112 tests passing across the data-layer and
+backup test files (`inventory`, `inventory-update`, `restock`, `sales`,
+`retailers`, `payments`, `returns`, `aging`, `invoices`, `db-snapshot`,
+`backup-state`, `drive`, `scheduler`).
 
 ## Known gotchas
 

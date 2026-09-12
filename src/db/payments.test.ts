@@ -18,12 +18,12 @@ afterEach(async () => {
 async function setupProduct() {
   const item = await createInventoryItem({
     productName: 'Rice',
-    baseUnit: 'kg',
-    unitConversions: {},
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
     marketPrice: 60,
   });
   await createRestock({
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 1000, costPricePerUnit: 40 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 1000, costPricePerUnit: 40 }],
   });
   return item;
 }
@@ -34,14 +34,14 @@ describe('createPayment', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
-    });
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
+    }); // 10 bags = 500 kg @ ₹60 = ₹30,000
 
-    await createPayment('r1', 600, 'cash');
+    await createPayment('r1', 30000, 'cash');
 
     const db = await getDB();
     const updated = await db.get('sales', sale.id);
-    expect(updated?.amountPaid).toBe(600);
+    expect(updated?.amountPaid).toBe(30000);
     expect(updated?.paymentStatus).toBe('paid');
   });
 
@@ -50,7 +50,7 @@ describe('createPayment', () => {
     const sale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 60 }],
     });
 
     await createPayment('r1', 200, 'cash');
@@ -66,16 +66,16 @@ describe('createPayment', () => {
     const saleA = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
-    }); // 300
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
+    }); // ₹15,000
     const saleB = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
-    }); // 300
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
+    }); // ₹15,000
 
     // enough to fully pay saleA and partially pay saleB
-    const payment = await createPayment('r1', 400, 'upi');
+    const payment = await createPayment('r1', 18000, 'upi');
 
     const db = await getDB();
     const updatedA = await db.get('sales', saleA.id);
@@ -83,10 +83,10 @@ describe('createPayment', () => {
 
     expect(updatedA?.paymentStatus).toBe('paid');
     expect(updatedB?.paymentStatus).toBe('partial');
-    expect(updatedB?.amountPaid).toBe(100);
+    expect(updatedB?.amountPaid).toBe(3000);
     expect(payment.allocations).toEqual([
-      { saleId: saleA.id, amountApplied: 300 },
-      { saleId: saleB.id, amountApplied: 100 },
+      { saleId: saleA.id, amountApplied: 15000 },
+      { saleId: saleB.id, amountApplied: 3000 },
     ]);
   });
 
@@ -95,10 +95,10 @@ describe('createPayment', () => {
     await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
-    }); // 300
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
+    }); // ₹15,000
 
-    await expect(createPayment('r1', 500, 'cash')).rejects.toThrow(/exceeds total owed/);
+    await expect(createPayment('r1', 20000, 'cash')).rejects.toThrow(/exceeds total owed/);
   });
 
   it('skips already-paid sales and CASH sales when allocating', async () => {
@@ -106,17 +106,17 @@ describe('createPayment', () => {
     await createSale({
       saleType: 'CASH',
       buyerName: 'Walk-in',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
     });
     const retailSale = await createSale({
       saleType: 'RETAIL',
       retailerId: 'r1',
-      items: [{ inventoryId: item.id, unit: 'kg', quantity: 5, salePrice: 60 }],
-    });
+      items: [{ inventoryId: item.id, unit: 'bag', quantity: 5, salePrice: 60 }],
+    }); // ₹15,000
 
-    const payment = await createPayment('r1', 300, 'cash');
+    const payment = await createPayment('r1', 15000, 'cash');
 
-    expect(payment.allocations).toEqual([{ saleId: retailSale.id, amountApplied: 300 }]);
+    expect(payment.allocations).toEqual([{ saleId: retailSale.id, amountApplied: 15000 }]);
   });
 
   it('rejects a non-positive amount', async () => {

@@ -7,9 +7,15 @@ type InventoryItem = WholesaleDB['inventory']['value'];
 
 type InventoryUpdateInput = {
   productName?: string;
-  marketPrice?: number;
-  unitConversions?: Record<string, number>;
+  marketPrice?: number; // ₹/kg
+  weightPerUnitKg?: number;
 };
+
+export const BASE_UNITS = ['bag', 'packet'] as const;
+
+export function pluralUnit(unit: string, count: number): string {
+  return count === 1 ? unit : `${unit}s`;
+}
 
 export async function createInventoryItem(
   input: Omit<InventoryItem, 'id' | 'quantity' | 'createdAt'>,
@@ -36,53 +42,33 @@ export async function listInventory(): Promise<InventoryItem[]> {
 }
 
 /**
- * Converts a quantity in a given unit to the item's baseUnit.
- * e.g. if item.baseUnit is 'kg' and unitConversions = { bag: 50 },
- * convertToBaseUnit(item, 3, 'bag') => 150
+ * Validates a sale/restock/return unit against the product. With base
+ * units limited to bag/packet there is no conversion table anymore — stock
+ * is counted in whole units, so this is an identity that exists purely to
+ * reject a unit the product doesn't support.
  */
-export function convertToBaseUnit(item: InventoryItem, quantity: number, unit: string): number {
-  if (unit === item.baseUnit) return quantity;
-
-  const factor = item.unitConversions[unit];
-  if (factor === undefined) {
-    throw new Error(`No conversion defined for unit "${unit}" on item "${item.productName}"`);
+export function assertSellableUnit(item: InventoryItem, unit: string): void {
+  if (unit !== item.baseUnit) {
+    throw new Error(`Unit "${unit}" isn't valid for "${item.productName}" (use ${item.baseUnit})`);
   }
-  return quantity * factor;
 }
 
-/**
- * Reverse of convertToBaseUnit — for displaying stock in a unit
- * other than baseUnit (e.g. showing "3 bags" instead of "150 kg").
- */
-export function convertFromBaseUnit(
-  item: InventoryItem,
-  baseQuantity: number,
-  targetUnit: string,
-): number {
-  if (targetUnit === item.baseUnit) return baseQuantity;
-
-  const factor = item.unitConversions[targetUnit];
-  if (factor === undefined) {
-    throw new Error(`No conversion defined for unit "${targetUnit}" on item "${item.productName}"`);
-  }
-  return baseQuantity / factor;
+/** Gross weight in kg for a quantity of units: qty × weight-per-unit. */
+export function totalWeightKg(item: InventoryItem, quantity: number, unit: string): number {
+  assertSellableUnit(item, unit);
+  return quantity * item.weightPerUnitKg;
 }
 
-/**
- * Formats a quantity for display, showing the base unit plus any
- * defined conversions — e.g. "150 kg · 3 bags"
- */
-export function formatQuantityDisplay(item: InventoryItem): string {
-  const parts = [`${item.quantity} ${item.baseUnit}`];
-  for (const [unit, factor] of Object.entries(item.unitConversions)) {
-    if (factor > 0) {
-      const converted = item.quantity / factor;
-      parts.push(
-        `${converted % 1 === 0 ? converted : converted.toFixed(1)} ${unit}${converted === 1 ? '' : 's'}`,
-      );
-    }
-  }
+/** Formats stock for display, e.g. "3 bags · 150 kg". */
+export function formatStockDisplay(item: InventoryItem): string {
+  const weight = item.quantity * item.weightPerUnitKg;
+  const parts = [`${item.quantity} ${pluralUnit(item.baseUnit, item.quantity)}`];
+  parts.push(`${formatWeight(weight)} kg`);
   return parts.join(' · ');
+}
+
+export function formatWeight(kg: number): string {
+  return Number.isInteger(kg) ? String(kg) : kg.toFixed(1);
 }
 
 export async function updateInventoryItem(
@@ -108,16 +94,11 @@ export async function updateInventoryItem(
     item.marketPrice = updates.marketPrice;
   }
 
-  if (updates.unitConversions !== undefined) {
-    for (const [unit, factor] of Object.entries(updates.unitConversions)) {
-      if (unit === item.baseUnit) {
-        throw new Error(`Conversion unit "${unit}" can't match the base unit`);
-      }
-      if (!Number.isFinite(factor) || factor <= 0) {
-        throw new Error(`Conversion factor for "${unit}" must be a positive number`);
-      }
+  if (updates.weightPerUnitKg !== undefined) {
+    if (!Number.isFinite(updates.weightPerUnitKg) || updates.weightPerUnitKg <= 0) {
+      throw new Error('Weight per unit must be a positive number of kg');
     }
-    item.unitConversions = updates.unitConversions;
+    item.weightPerUnitKg = updates.weightPerUnitKg;
   }
 
   await db.put('inventory', item);

@@ -1,34 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { createInventoryItem } from '../../db/inventory';
-
-type ConversionRow = { unit: string; factor: string };
-
-const BASE_UNITS = ['kg', 'bag', 'quintal'] as const;
+import { createInventoryItem, BASE_UNITS } from '../../db/inventory';
 
 const inputClass = 'text-base p-2 border border-[#d8cfb8] bg-white text-[#2b2620]';
 const fieldLabelClass = 'flex flex-col gap-1 text-sm text-[#6b6555] mb-3.5';
 
 export function AddProductForm({ onCreated }: { onCreated: () => void }) {
   const [productName, setProductName] = useState('');
-  const [baseUnit, setBaseUnit] = useState<(typeof BASE_UNITS)[number]>('kg');
-  const [marketPrice, setMarketPrice] = useState('');
-  const [conversions, setConversions] = useState<ConversionRow[]>([]);
+  const [baseUnit, setBaseUnit] = useState<(typeof BASE_UNITS)[number]>('bag');
+  const [weightPerUnitKg, setWeightPerUnitKg] = useState('');
+  const [pricePerKg, setPricePerKg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  function addConversionRow() {
-    setConversions([...conversions, { unit: '', factor: '' }]);
-  }
-
-  function updateConversionRow(index: number, field: keyof ConversionRow, value: string) {
-    const next = [...conversions];
-    next[index] = { ...next[index], [field]: value };
-    setConversions(next);
-  }
-
-  function removeConversionRow(index: number) {
-    setConversions(conversions.filter((_, i) => i !== index));
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,26 +22,16 @@ export function AddProductForm({ onCreated }: { onCreated: () => void }) {
       return;
     }
 
-    const price = Number(marketPrice);
-    if (!Number.isFinite(price) || price <= 0) {
-      setError('Market price must be a positive number.');
+    const weight = Number(weightPerUnitKg);
+    if (!Number.isFinite(weight) || weight <= 0) {
+      setError('Weight per unit (kg) is required and must be a positive number.');
       return;
     }
 
-    const unitConversions: Record<string, number> = {};
-    for (const row of conversions) {
-      const unit = row.unit.trim();
-      const factor = Number(row.factor);
-      if (!unit) continue;
-      if (!Number.isFinite(factor) || factor <= 0) {
-        setError(`Conversion factor for "${unit}" must be a positive number.`);
-        return;
-      }
-      if (unit === baseUnit) {
-        setError(`Conversion unit "${unit}" can't be the same as the base unit.`);
-        return;
-      }
-      unitConversions[unit] = factor;
+    const price = Number(pricePerKg);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError('Price per kg must be a positive number.');
+      return;
     }
 
     setSaving(true);
@@ -67,12 +39,13 @@ export function AddProductForm({ onCreated }: { onCreated: () => void }) {
       await createInventoryItem({
         productName: trimmedName,
         baseUnit,
-        unitConversions,
+        weightPerUnitKg: weight,
         marketPrice: price,
       });
       setProductName('');
-      setMarketPrice('');
-      setConversions([]);
+      setBaseUnit('bag');
+      setWeightPerUnitKg('');
+      setPricePerKg('');
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save product.');
@@ -114,53 +87,33 @@ export function AddProductForm({ onCreated }: { onCreated: () => void }) {
       </label>
 
       <label className={fieldLabelClass}>
-        Market price (per {baseUnit})
+        Weight per {baseUnit} (kg)
         <input
           className={inputClass}
           type="number"
           min="0"
           step="0.01"
-          value={marketPrice}
-          onChange={(e) => setMarketPrice(e.target.value)}
+          value={weightPerUnitKg}
+          onChange={(e) => setWeightPerUnitKg(e.target.value)}
+          placeholder="50"
+        />
+      </label>
+      <p className="text-xs text-[#6b6555] -mt-2 mb-3.5">
+        Required — e.g. a 50 kg rice bag is 50. Used to work out gross weight and billing.
+      </p>
+
+      <label className={fieldLabelClass}>
+        Price per kg (₹)
+        <input
+          className={inputClass}
+          type="number"
+          min="0"
+          step="0.01"
+          value={pricePerKg}
+          onChange={(e) => setPricePerKg(e.target.value)}
           placeholder="60"
         />
       </label>
-
-      <div className="mb-4">
-        <div className="flex justify-between items-center text-sm text-[#6b6555] mb-2">
-          <span>Unit conversions (optional)</span>
-          <button type="button" onClick={addConversionRow} className="underline">
-            + Add
-          </button>
-        </div>
-        {conversions.map((row, i) => (
-          <div className="flex items-center gap-2 mb-2" key={i}>
-            <input
-              className={`${inputClass} w-20 p-1.5`}
-              placeholder="bag"
-              value={row.unit}
-              onChange={(e) => updateConversionRow(i, 'unit', e.target.value)}
-            />
-            <span>=</span>
-            <input
-              className={`${inputClass} w-20 p-1.5`}
-              type="number"
-              min="0"
-              placeholder="50"
-              value={row.factor}
-              onChange={(e) => updateConversionRow(i, 'factor', e.target.value)}
-            />
-            <span>{baseUnit}</span>
-            <button
-              type="button"
-              onClick={() => removeConversionRow(i)}
-              className="text-[#b54b3a] px-1"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
 
       {error && <p className="text-[#b54b3a] text-sm mb-3">{error}</p>}
 

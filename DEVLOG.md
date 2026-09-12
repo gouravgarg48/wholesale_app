@@ -479,10 +479,10 @@ if another write touched the same item concurrently.
 Market price changes frequently in practice, so needed a real edit path — but
 not every field on a product is safe to edit after creation:
 
-- **Safe to edit anytime**: `productName`, `marketPrice`, `unitConversions`.
-  These are forward-looking defaults; past sales already snapshotted their own
-  `salePrice` at time of sale, so editing these never touches historical
-  records.
+- **Safe to edit anytime**: `productName`, `marketPrice` (₹/kg),
+  `weightPerUnitKg`. These are forward-looking defaults; past sales already
+  snapshotted their own `salePrice` (₹/kg) and weight at time of sale, so
+  editing these never touches historical records.
 - **Never editable**: `quantity` (only changes via restock/sale/return, per the
   standing rule) and `baseUnit`. The latter is subtle — `quantity` is stored as
   a raw number *in* `baseUnit`; changing `baseUnit` after stock exists would
@@ -756,14 +756,22 @@ bill** and the copies count is set in the dialog (that's the "single bill +
 manual copies" choice — the 3-copy *physical* output is a print-dialog setting,
 not three differently-labeled pages, at least for now).
 
-`@media print` in `src/index.css`:
-- `@page { size: A5; margin: 10mm }` — A5 page geometry
-- `body * { visibility: hidden }` then re-enable `.print-area, .print-area *` —
-  the standard "print only this subtree" trick (visibility rather than
-  display:none so the bill keeps its layout)
-- `.print-area { position: absolute; left: 0; top: 0; width: 148mm }` pins the
-  bill to the page top-left. The screen-mode toolbar (Back / Print) is hidden
-  with Tailwind's `print:hidden`.
+The iOS home-screen run surfaced a real printing bug: a one-page bill printed
+as **five** pages. Root cause was the classic print CSS `body * { visibility:
+hidden }` trick — the app's tall layout boxes were still rendered (just not
+visible) and the browser measured *those* for pagination, spilling the bill
+across sheets. §24 covers the fix; the print CSS is now:
+
+- `@page { size: A5; margin: 8mm }` — A5 page geometry
+- The bill preview renders into a body-level portal (`#print-scaffold`) via
+  `createPortal`; at print time `#root` gets `display: none !important` and
+  only the scaffold is shown, so the paginated app layout is gone entirely,
+  not merely invisible.
+- `.print-area { width: 132mm }` — fits the A5 sheet with the 8mm margins.
+
+The URL/"github pages" text that appears on paper is the browser's own header
+chrome, added outside the page box — no CSS can remove that; it's a print-dialog
+setting on the device.
 
 ### Template cutbacks after the first real look
 
@@ -785,14 +793,13 @@ bill now ends at Total with the two signature blocks.
 
 ✅ 61/61 tests passing across all nine test files (was 56/56 before the invoices file).
 
-### Backlogged: real-printer checkpoint (not done)
+### Backlogged: real-printer checkpoint (deferred by choice)
 
 The Phase 4 checkpoint is "a real bill prints correctly on the actual shop
 printer" — margins, paper size, and browser print quirks are exactly the kind
-of thing that only shows up on hardware. The view is built and verifiable in a
-pilot, but the checkpoint itself requires a physical print run from the shop
-printer. Not done yet, and deliberately the next thing to check after this is
-in a real browser.
+of thing that only shows up on hardware. The user explicitly parked this until
+the pilot: printing works in the browser (single clean A5 page in the preview),
+only real-hardware sizing needs a physical run, so it's not blocking anything.
 
 ## 21. ESLint + Prettier cleanup (the long-pending "low priority" item)
 
@@ -1046,6 +1053,75 @@ The manual-routing decision is deliberately the simplest option and was the
 user's call; the "proper" admin path (a sync endpoint the developer controls)
 remains available later as the Google Apps Script route described in chat.
 
-✅ 106/106 tests across 13 files, `npm run lint` clean, `npm run build` clean,
-real Google sign-in verified (token exchange 200, upload to the backup folder
-returns the created file).
+## 24. Weight-based billing model, one-page print, in-app erase
+
+Three changes landed together, all driven by the phone/home-screen run and the
+shop's actual way of doing business:
+
+### 24.1 Every bill line is base-quantity × weight × ₹/kg
+
+User walked through the real bill format: shops sell *bags* but price *by
+weight* — a 50kg rice bag at ₹60/kg is per bag, not "1 unit at ₹3,000". The
+old `unitConversions`/multi-unit model was wrong for that. New model:
+
+- Product unit is **bag or packet only** (kg/quintal removed); `quantity` (stock
+  and sale lines) is a raw number of that unit.
+- Every product requires **`weightPerUnitKg`** (mandatory in Add Product — a
+  50kg bag has 50 here). `marketPrice` is now **₹ per kg** (was ₹ per base
+  unit).
+- A sale line computes: gross weight = `quantity × weightPerUnitKg`, amount =
+  gross weight × `salePrice` (₹/kg). The bill shows `# | Item | Qty | Wt/unit |
+  Gross wt | Rate | Amount` so the customer can recompute it by hand.
+- Each sale item snapshots `weightPerUnitKg` at sale time (same rule as
+  `salePrice` — history never changes when a weight is edited later).
+- Returns refund on `quantity × weightPerUnitKg × salePrice` from the snapshot.
+- Restock stays unit-counted in the product's base unit; stock checks in
+  `sales.ts` compare units.
+
+Hold-over: the field names `marketPrice`/`salePrice` kept their names but now
+mean ₹/kg — audited in `sales.ts`, `restock.ts`, `returns.ts`, `inventory.ts`,
+`SaleForm`, `AddProductForm`, `InventoryList`, and `BillPrintView` rather than
+churning the DB schema with renames. `AddProductForm` enforces a positive
+`weightPerUnitKg`; `SaleForm` pre-fills ₹/kg from `marketPrice` and live-
+previews a line as "qty bags ≈ N kg → ₹X".
+
+### 24.2 Snapshot format is now v2
+
+The weight-model change makes an old v1 snapshot's numbers meaningless (a v1
+"kg" unit can't be mapped to bags; prices were per-unit-ish). `SNAPSHOT_VERSION`
+is now `2` and v1 files are **refused with a clear version error** at restore
+rather than silently restoring corrupt data. Old test data on any device should
+be erased (below) and a fresh backup taken.
+
+### 24.3 One bill, not five pages (the print portal)
+
+See §20: on the home-screen app a single bill printed across 5 sheets because
+the old `body * { visibility: hidden }` print CSS left the full app layout
+rendered, and pagination used its height. `BillPrintView` now renders its
+preview into a **portal on `document.body`** (`#print-scaffold`), and print CSS
+sets `#root { display: none !important }` plus `@page A5 / margin 8mm` and a
+132mm print area. Hidden-but-rendered layout can no longer paginate the bill.
+The "github pages" footer on paper is browser chrome, not the app.
+
+### 24.4 Erase all local data (iOS has no "clear site data")
+
+We needed a destructive step on a real phone to test restore-from-backup, and
+iOS home-screen webapps expose no Safari path to clear a site's storage. Added
+a two-step-confirm **"Erase everything on this device"** danger zone at the
+bottom of the Backup panel: it closes the DB, `indexedDB.deleteDatabase(...)`
+(`resetLocalData()` in `schema.ts`), and reloads to a fresh install — Drive
+auth and all. This is the on-device hook for the Phase 5 restore checkpoint
+(erase → re-sign-in → restore from Drive).
+
+### 24.5 Test updates
+
+Rewrites for the weight model: `inventory.test.ts`, `inventory-update.test.ts`,
+`restock.test.ts`, `sales.test.ts`, `returns.test.ts`, `invoices.test.ts`,
+`db-snapshot.test.ts` (fixtures now bags/50kg), plus `aging.test.ts` and
+`payments.test.ts` amounts recomputed against the new math (10 bags @ ₹60/kg =
+₹30,000; 5 bags = ₹15,000). `sales.test.ts`/`restock.test.ts` keep their
+intentional bad-unit rejection cases (`unit: 'kg'`).
+
+✅ 112/112 tests across 13 files, `npm run lint` clean, `npm run build` clean
+(type-fix: `(SaleItemInput & { weightPerUnitKg: number })[]` parentheses — bare
+`&` binds the `[]` to the last member only).

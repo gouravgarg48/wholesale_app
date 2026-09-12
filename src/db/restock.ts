@@ -1,6 +1,6 @@
 import { getDB } from './schema';
 import type { WholesaleDB } from './schema';
-import { convertToBaseUnit } from './inventory';
+import { assertSellableUnit } from './inventory';
 import { monotonicNow } from './clock';
 import { generateId } from './id';
 
@@ -36,8 +36,8 @@ export async function createRestock(input: RestockInput): Promise<RestockRecord>
         throw new Error(`Inventory item ${item.inventoryId} not found`);
       }
 
-      const baseQuantity = convertToBaseUnit(inventoryItem, item.quantity, item.unit);
-      inventoryItem.quantity += baseQuantity;
+      assertSellableUnit(inventoryItem, item.unit);
+      inventoryItem.quantity += item.quantity;
       await inventoryStore.put(inventoryItem);
 
       totalCost += item.quantity * item.costPricePerUnit;

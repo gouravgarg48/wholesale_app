@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { convertToBaseUnit, convertFromBaseUnit } from './inventory';
+import {
+  BASE_UNITS,
+  assertSellableUnit,
+  totalWeightKg,
+  formatStockDisplay,
+  pluralUnit,
+} from './inventory';
 import type { WholesaleDB } from './schema';
 import { monotonicNow } from './clock';
 
@@ -8,42 +14,60 @@ type InventoryItem = WholesaleDB['inventory']['value'];
 const mockItem: InventoryItem = {
   id: 'test-1',
   productName: 'Basmati Rice',
-  baseUnit: 'kg',
-  unitConversions: { bag: 50 },
-  quantity: 0,
+  baseUnit: 'bag',
+  weightPerUnitKg: 50,
+  quantity: 3,
   marketPrice: 60,
   createdAt: monotonicNow(),
 };
 
-describe('convertToBaseUnit', () => {
-  it('returns the same quantity when unit matches baseUnit', () => {
-    expect(convertToBaseUnit(mockItem, 10, 'kg')).toBe(10);
-  });
-
-  it('converts a non-base unit using the conversion factor', () => {
-    expect(convertToBaseUnit(mockItem, 3, 'bag')).toBe(150);
-  });
-
-  it('throws on an unknown unit instead of silently returning wrong data', () => {
-    expect(() => convertToBaseUnit(mockItem, 5, 'quintal')).toThrow();
+describe('base units', () => {
+  it('offers only bag and packet', () => {
+    expect(BASE_UNITS).toEqual(['bag', 'packet']);
   });
 });
 
-describe('convertFromBaseUnit', () => {
-  it('returns the same quantity when target matches baseUnit', () => {
-    expect(convertFromBaseUnit(mockItem, 150, 'kg')).toBe(150);
+describe('pluralUnit', () => {
+  it('pluralizes bag and packet', () => {
+    expect(pluralUnit('bag', 1)).toBe('bag');
+    expect(pluralUnit('bag', 3)).toBe('bags');
+    expect(pluralUnit('packet', 5)).toBe('packets');
+  });
+});
+
+describe('assertSellableUnit', () => {
+  it('accepts the product base unit', () => {
+    expect(() => assertSellableUnit(mockItem, 'bag')).not.toThrow();
   });
 
-  it('converts baseUnit quantity into a target unit', () => {
-    expect(convertFromBaseUnit(mockItem, 150, 'bag')).toBe(3);
+  it('throws for any unit other than the base unit', () => {
+    expect(() => assertSellableUnit(mockItem, 'kg')).toThrow();
+    expect(() => assertSellableUnit(mockItem, 'packet')).toThrow();
+  });
+});
+
+describe('totalWeightKg', () => {
+  it('computes quantity × weight per unit', () => {
+    expect(totalWeightKg(mockItem, 3, 'bag')).toBe(150);
   });
 
-  it('throws on an unknown target unit', () => {
-    expect(() => convertFromBaseUnit(mockItem, 150, 'quintal')).toThrow();
+  it('throws for an invalid unit instead of guessing', () => {
+    expect(() => totalWeightKg(mockItem, 3, 'kg')).toThrow();
+  });
+});
+
+describe('formatStockDisplay', () => {
+  it('shows units plus the gross weight', () => {
+    expect(formatStockDisplay(mockItem)).toBe('3 bags · 150 kg');
   });
 
-  it('round-trips correctly with convertToBaseUnit', () => {
-    const base = convertToBaseUnit(mockItem, 7, 'bag');
-    expect(convertFromBaseUnit(mockItem, base, 'bag')).toBe(7);
+  it('does not pluralize a single unit', () => {
+    expect(formatStockDisplay({ ...mockItem, quantity: 1 })).toBe('1 bag · 50 kg');
+  });
+
+  it('handles fractional weights cleanly', () => {
+    expect(formatStockDisplay({ ...mockItem, weightPerUnitKg: 50.5 })).toBe(
+      '3 bags · 151.5 kg',
+    );
   });
 });

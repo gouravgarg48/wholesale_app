@@ -19,15 +19,20 @@ export interface WholesaleDB extends DBSchema {
   // It only changes inside the same transaction as a Sale, Restock, or
   // Return write. Cost price lives on Restock (sourced at different
   // times/prices), not here — this only holds a default sale-facing price.
+  //
+  // Stock is counted in "base units" of whole bag/packet, and every product
+  // has a mandatory weight in kg per unit. Selling is by weight: the bill
+  // shows qty (bags/packets) × weight per unit = gross weight, priced at
+  // ₹/kg (marketPrice). Gross price = gross weight × ₹/kg.
   inventory: {
     key: string;
     value: {
       id: string;
       productName: string;
-      baseUnit: 'kg' | 'bag' | 'quintal';
-      unitConversions: Record<string, number>; // e.g. { bag: 50 } = 1 bag is 50 kg
-      quantity: number; // always in baseUnit
-      marketPrice: number; // default per-baseUnit price, overridable per bill line
+      baseUnit: 'bag' | 'packet';
+      weightPerUnitKg: number; // mandatory, > 0 — e.g. 50 means 1 bag = 50 kg
+      quantity: number; // number of bag/packet units
+      marketPrice: number; // default ₹/kg price, overridable per bill line
       createdAt: number;
     };
     indexes: { 'by-name': string };
@@ -45,9 +50,10 @@ export interface WholesaleDB extends DBSchema {
       date: number;
       items: {
         inventoryId: string;
-        unit: string;
-        quantity: number;
-        salePrice: number; // per-bill price, snapshotted — may differ from marketPrice
+        unit: string; // 'bag' | 'packet' — copied from the product at sale time
+        quantity: number; // number of units (bags/packets)
+        weightPerUnitKg: number; // snapshotted kg per unit, so bill math is stable
+        salePrice: number; // per-kg price, snapshotted — may differ from marketPrice
       }[];
       totalAmount: number;
       status: 'active' | 'cancelled';
@@ -204,4 +210,25 @@ export async function closeDB(): Promise<void> {
     db.close();
     dbPromise = null;
   }
+}
+
+/**
+ * Destroys every store on this device and returns the app to a clean slate.
+ * Used by the in-app "Erase all local data" button — the iPhone home-screen
+ * webapp has no built-in Safari menu to clear site data, so this is the
+ * only reliable way to exercise the restore path (Phase 5) or bail out of a
+ * misconfigured state. Also wipes the Google token, so Drive requires a
+ * fresh sign-in afterwards.
+ */
+export async function resetLocalData(): Promise<void> {
+  await closeDB();
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    // If another tab holds the DB open, deletion stays blocked. We only
+    // have one app instance per tab; if it ever blocks, forget it and let
+    // the caller surface the failure.
+    req.onblocked = () => reject(new Error('Another tab is keeping the database open.'));
+  });
 }

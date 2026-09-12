@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { listInventory } from '../../db/inventory';
+import { listInventory, pluralUnit } from '../../db/inventory';
 import { createRestock } from '../../db/restock';
 import type { WholesaleDB } from '../../db/schema';
 
@@ -19,18 +19,13 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
     listInventory().then(setInventory);
   }, []);
 
-  function unitsFor(inventoryId: string): string[] {
-    const item = inventory.find((i) => i.id === inventoryId);
-    if (!item) return [];
-    return [item.baseUnit, ...Object.keys(item.unitConversions)];
-  }
-
   function updateRow(index: number, field: keyof RestockRow, value: string) {
     const next = [...rows];
     next[index] = { ...next[index], [field]: value };
-    // if switching product, reset unit since old unit may not apply to new product
+    // unit is always the product's base unit — set it when the product changes
     if (field === 'inventoryId') {
-      next[index].unit = '';
+      const item = inventory.find((i) => i.id === value);
+      next[index].unit = item ? item.baseUnit : '';
     }
     setRows(next);
   }
@@ -131,19 +126,9 @@ export function RestockForm({ onCreated }: { onCreated: () => void }) {
             className={`${inputClass} w-20`}
           />
 
-          <select
-            className={`${inputClass} w-24`}
-            value={row.unit}
-            onChange={(e) => updateRow(i, 'unit', e.target.value)}
-            disabled={!row.inventoryId}
-          >
-            <option value="">Unit</option>
-            {unitsFor(row.inventoryId).map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
+          <span className="text-sm text-[#6b6555] w-16 text-center">
+            {row.unit ? pluralUnit(row.unit, 2) : 'unit'}
+          </span>
 
           <span className="text-sm text-[#6b6555]">@ ₹</span>
           <input

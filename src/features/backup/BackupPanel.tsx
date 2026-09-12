@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { resetLocalData } from '../../db/schema';
 import {
   exportSnapshot,
   restoreSnapshot,
@@ -40,6 +41,7 @@ export function BackupPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deviceLabel, setDeviceLabelState] = useState('');
+  const [confirmErase, setConfirmErase] = useState(false);
 
   const refresh = useCallback(async () => {
     const [state, persistence, token, label] = await Promise.all([
@@ -158,6 +160,16 @@ export function BackupPanel() {
           ? "The browser didn't guarantee persistence — your data could be evicted under memory pressure."
           : "Persistent storage isn't available in this browser.";
 
+  async function handleEraseAll() {
+    try {
+      await resetLocalData();
+      window.location.reload();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not erase local data.');
+      setConfirmErase(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-8 font-sans text-[#2b2620]">
       <h1 className="font-serif text-2xl font-semibold mb-3">Backup</h1>
@@ -225,7 +237,7 @@ export function BackupPanel() {
         <p className="text-sm text-[#6b6555]">{persistenceNote}</p>
       </div>
 
-      <div className="bg-[#faf7f2] border border-[#e4dccb] p-4">
+      <div className="bg-[#faf7f2] border border-[#e4dccb] p-4 mb-4">
         <span className="font-serif text-lg">Manual backup</span>
         <p className="text-sm text-[#6b6555] mb-3">
           Works without any Google setup — save a copy of your data, or restore a saved copy.
@@ -265,6 +277,41 @@ export function BackupPanel() {
             />
           </label>
         </div>
+      </div>
+
+      <div className="bg-[#faf7f2] border border-[#b54b3a] p-4 mb-4">
+        <span className="font-serif text-lg text-[#b54b3a]">Erase everything on this device</span>
+        <p className="text-sm text-[#6b6555] mb-3">
+          Removes every sale, product, retailer, payment and backup stored locally, and signs out
+          of Google Drive. Use this to start fresh or to test restoring a backup — the iPhone
+          home-screen app has no Safari menu for clearing site data, so this is the app's own
+          reset button.
+        </p>
+        {confirmErase ? (
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-[#b54b3a] font-semibold">
+              Permanently delete everything on this device?
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleEraseAll()}
+              className="px-4 py-2 bg-[#b54b3a] text-white border-none text-sm cursor-pointer"
+            >
+              Yes, erase all data
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmErase(false)}
+              className="text-sm text-[#6b6555] underline"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirmErase(true)} className="text-sm text-[#b54b3a] underline">
+            Erase all local data…
+          </button>
+        )}
       </div>
 
       {message && (

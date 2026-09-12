@@ -27,22 +27,22 @@ afterEach(async () => {
 async function setupData() {
   const item = await createInventoryItem({
     productName: 'Rice',
-    baseUnit: 'kg',
-    unitConversions: { bag: 50 },
+    baseUnit: 'bag',
+    weightPerUnitKg: 50,
     marketPrice: 60,
   });
   await createRestock({
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 1000, costPricePerUnit: 40 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 1000, costPricePerUnit: 40 }],
   });
   await createSale({
     saleType: 'RETAIL',
     retailerId: 'r1',
-    items: [{ inventoryId: item.id, unit: 'bag', quantity: 2, salePrice: 3000 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 2, salePrice: 60 }],
   });
   await createSale({
     saleType: 'CASH',
     buyerName: 'Walk-in',
-    items: [{ inventoryId: item.id, unit: 'kg', quantity: 10, salePrice: 62 }],
+    items: [{ inventoryId: item.id, unit: 'bag', quantity: 10, salePrice: 62 }],
   });
   return item;
 }
@@ -139,7 +139,7 @@ describe('restoreSnapshot', () => {
 
     // Inventory quantities come back restored — the running total is data too.
     const restoredItem = (check.stores.inventory as { quantity: number }[])[0];
-    expect(restoredItem.quantity).toBe(1000 - 2 * 50 - 10); // 890
+    expect(restoredItem.quantity).toBe(1000 - 2 - 10); // 988 units (bags)
   });
 
   it('rejects a snapshot that is not from this app', async () => {

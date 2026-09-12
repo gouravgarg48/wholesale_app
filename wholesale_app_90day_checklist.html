@@ -242,7 +242,7 @@
     <div class="ledger-label">Family Wholesale Business — Internal Tool</div>
     <h1>90-Day Build Tracker</h1>
     <p class="subtitle">Single-device PWA · Ledger, Inventory &amp; Billing · ~36 hrs/week</p>
-    <p class="subtitle" style="margin-top:4px;">Last synced with actual progress: Phases 1–3 complete, Phase 4 built (printer checkpoint pending), Phase 5 built and verified against real Google (sign-in + upload working); Drive-restore-on-phone checkpoint pending</p>
+    <p class="subtitle" style="margin-top:4px;">Last synced with actual progress: Phases 1–3 complete, Phase 4 built (weight-based single-page A5 bill; physical printer sizing deferred to pilot by choice), Phase 5 built and verified against real Google (Web application OAuth client, sign-in + upload working); Drive-restore-on-phone checkpoint pending</p>
     <div class="progress-block">
       <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
       <div class="progress-num" id="progressNum">0%</div>
@@ -282,13 +282,13 @@ const PHASES = [
     week: "Weeks 3–4 · ~70 hrs",
     title: "Inventory Core",
     tasks: [
-      "Product catalog: add/edit product, base unit, unit conversion logic",
+      "Product catalog: add/edit product, base unit (bag/packet), mandatory weight-per-unit-kg — billing is weight-based at ₹/kg",
       "Restock (stock-in) flow — atomic transaction with inventory, cost tracking",
       "Sale flow — data layer (atomic transaction, CASH/RETAIL types, overselling prevented)",
       "Sale flow — UI",
       "Retailer CRUD — data layer",
       "Retailer CRUD — UI",
-      "Inline inventory editing (market price, name, unit conversions — quantity/base unit deliberately not editable)",
+      "Inline inventory editing (market price ₹/kg, name, weight-per-unit-kg — quantity/base unit deliberately not editable)",
       "Inventory audit trail — satisfied via immutable, timestamped restock/sale/return records rather than a separate event-log table"
     ],
     checkpoint: "Can add products, restock them, sell them (CASH or to a retailer), edit prices, and see accurate running inventory — all backed by tested atomic transactions.",
@@ -314,11 +314,11 @@ const PHASES = [
     week: "Week 7 · ~35 hrs",
     title: "Billing / Print",
     tasks: [
-      "Build A5 print template",
+      "Build A5 print template — weight-based lines: base qty | wt/unit | gross wt | rate ₹/kg | amount",
       "3-copy print flow via browser print dialog",
-      "Test on the actual shop printer early — margins, paper size, browser print quirks"
+      "In-browser A5 print verified as a single page (portal print CSS fix); shop-printer hardware sizing deliberately parked until the pilot"
     ],
-    checkpoint: "A real bill prints correctly on the actual shop printer."
+    checkpoint: "A bill prints as one clean A5 page in the browser (physical printer sizing deferred to pilot by choice)."
   },
   {
     id: "p5",
@@ -330,11 +330,12 @@ const PHASES = [
       "Google Drive API integration",
       "Background sync logic: check connectivity, export DB, upload, retry",
       "48-hour fallback nag if backup hasn't succeeded",
-      "Set up real Google OAuth client (Desktop application type) + verify sign-in and upload work end-to-end",
-      "Manual backup: download/restore full-DB JSON file, with device label for identifying who a file is from"
+      "Set up real Google OAuth client (Web application type — Desktop clients only accept loopback redirects, which break the hosted GitHub Pages origin) + register both redirect URIs and verify sign-in/upload end-to-end",
+      "Manual backup: download/restore full-DB JSON file, with device label for identifying who a file is from",
+      "In-app 'Erase all local data' (iOS home-screen webapps have no Safari clear-site-data menu) + snapshot format v2 that refuses old v1 backups"
     ],
-    checkpoint: "Kill the app, clear cache manually, restore successfully from a Drive backup — this is the test that actually matters.",
-    note: "Google's token endpoint enforces client_secret even for Desktop clients despite the docs calling it optional — the secret ships in the bundle (sanctioned for installed apps). Uploads require the dedicated host www.googleapis.com/upload/drive/v3/files. Multi-device/manual admin routing uses the device-labeled JSON backup: user exports, developer edits, user restores."
+    checkpoint: "Kill the app, erase local data in-app, restore successfully from a Drive backup — this is the test that actually matters.",
+    note: "Google's token endpoint enforces client_secret even for Web clients; the secret ships in the bundle (scoped to drive.file). The Web application client needs both redirect URIs registered exactly — http://localhost:5173/wholesale_app/ and https://gouravgarg48.github.io/wholesale_app/ (trailing slash included). Uploads require the dedicated host www.googleapis.com/upload/drive/v3/files. Multi-device/manual admin routing uses the device-labeled JSON backup: user exports, developer edits, user restores."
   },
   {
     id: "p6",
@@ -374,7 +375,7 @@ const SEED_STATE = {
   "p3-t3": true, "p3-t4": true, "p3-t5": true,
   "p4-t0": true, "p4-t1": true,
   "p5-t0": true, "p5-t1": true, "p5-t2": true, "p5-t3": true, "p5-t4": true,
-  "p5-t5": true, "p5-t6": true
+  "p5-t5": true, "p5-t6": true, "p5-t7": true
 };
 
 let state = {}; // { taskId: true/false }

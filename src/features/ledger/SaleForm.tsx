@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { listInventory } from '../../db/inventory';
+import { listInventory, pluralUnit } from '../../db/inventory';
 import { listRetailers } from '../../db/retailers';
 import { createSale } from '../../db/sales';
 import type { WholesaleDB } from '../../db/schema';
@@ -26,22 +26,30 @@ export function SaleForm({ onCreated }: { onCreated: () => void }) {
     listRetailers().then(setRetailers);
   }, []);
 
-  function unitsFor(inventoryId: string): string[] {
-    const item = inventory.find((i) => i.id === inventoryId);
-    if (!item) return [];
-    return [item.baseUnit, ...Object.keys(item.unitConversions)];
-  }
-
   function updateRow(index: number, field: keyof SaleRow, value: string) {
     const next = [...rows];
     next[index] = { ...next[index], [field]: value };
     if (field === 'inventoryId') {
-      next[index].unit = '';
-      // pre-fill sale price with the product's market price, still editable
+      // quantity is always in the product's base unit (bag/packet); pre-fill
+      // the per-kg rate with the product's market price, still editable
       const item = inventory.find((i) => i.id === value);
-      if (item) next[index].salePrice = String(item.marketPrice);
+      if (item) {
+        next[index].unit = item.baseUnit;
+        next[index].salePrice = String(item.marketPrice);
+      }
     }
     setRows(next);
+  }
+
+  function rowPreview(row: SaleRow, item: InventoryItem | undefined) {
+    if (!item || !row.quantity) return null;
+    const qty = Number(row.quantity);
+    const price = Number(row.salePrice);
+    const weight = qty * item.weightPerUnitKg;
+    if (!Number.isFinite(qty) || qty <= 0) return null;
+    return `${qty} ${pluralUnit(item.baseUnit, qty)} ≈ ${weight} kg → ₹${(
+      weight * (Number.isFinite(price) ? price : 0)
+    ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   }
 
   function addRow() {
@@ -186,9 +194,19 @@ export function SaleForm({ onCreated }: { onCreated: () => void }) {
             <option value="">Select product…</option>
             {inventory.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.productName} ({item.quantity} {item.baseUnit} in stock)
+                {item.productName} ({item.quantity} {pluralUnit(item.baseUnit, item.quantity)} in
+                stock)
               </option>
             ))}
+          </select>
+
+          <select
+            className={`${inputClass} w-20`}
+            value={row.unit}
+            disabled
+            title="Unit is set from the product"
+          >
+            <option value={row.unit}>{row.unit || 'unit'}</option>
           </select>
 
           <input
@@ -200,26 +218,12 @@ export function SaleForm({ onCreated }: { onCreated: () => void }) {
             className={`${inputClass} w-20`}
           />
 
-          <select
-            className={`${inputClass} w-24`}
-            value={row.unit}
-            onChange={(e) => updateRow(i, 'unit', e.target.value)}
-            disabled={!row.inventoryId}
-          >
-            <option value="">Unit</option>
-            {unitsFor(row.inventoryId).map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
-
-          <span className="text-sm text-[#6b6555]">@ ₹</span>
+          <span className="text-sm text-[#6b6555]">₹/kg</span>
           <input
             type="number"
             min="0"
             step="0.01"
-            placeholder="Price"
+            placeholder="Rate"
             value={row.salePrice}
             onChange={(e) => updateRow(i, 'salePrice', e.target.value)}
             className={`${inputClass} w-24`}
@@ -229,6 +233,12 @@ export function SaleForm({ onCreated }: { onCreated: () => void }) {
             <button type="button" onClick={() => removeRow(i)} className="text-[#b54b3a] px-1">
               ×
             </button>
+          )}
+
+          {rowPreview(row, inventory.find((p) => p.id === row.inventoryId)) && (
+            <p className="w-full text-xs text-[#6b6555]">
+              {rowPreview(row, inventory.find((p) => p.id === row.inventoryId))}
+            </p>
           )}
         </div>
       ))}

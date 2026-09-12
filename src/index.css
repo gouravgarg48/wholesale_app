@@ -1,26 +1,42 @@
 @import 'tailwindcss';
 
-/* A5 bill printing — only the .print-area is printed; everything else
-   (app chrome, overlay) is hidden. A5 = 148mm x 210mm. */
+/* The on-screen print preview lives with the app. The real printer target is a
+   portal (#print-scaffold) rendered directly on document.body, OUTSIDE #root,
+   so that when printing we can simply #root: display none — that removes the
+   entire app (and its tall layout) from the print flow. Hiding via
+   visibility used to keep every element's layout box, which is what spilled a
+   one-page bill across 5 pages (the app's long page got paginated).
+
+   A5 = 148mm x 210mm. Note: the "github pages" URL footer printed on paper is
+   the browser/printer's own header/footer chrome — it is not rendered by this
+   app and cannot be removed from CSS; disable it in the printer dialog where
+   the option exists. */
+#print-scaffold {
+  display: none;
+}
+
 @media print {
   @page {
     size: A5;
-    margin: 10mm;
+    margin: 8mm;
   }
 
-  body * {
-    visibility: hidden;
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
   }
 
-  .print-area,
-  .print-area * {
-    visibility: visible;
+  #root {
+    display: none !important;
   }
 
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 148mm;
+  #print-scaffold {
+    display: block !important;
+  }
+
+  #print-scaffold .print-area {
+    width: 132mm; /* A5 width minus the @page margins */
   }
 }
